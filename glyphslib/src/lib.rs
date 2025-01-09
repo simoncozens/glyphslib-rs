@@ -57,35 +57,38 @@ impl Font {
         }
     }
 
+    pub fn upgrade_in_place(&mut self) {
+        *self = self.upgrade();
+    }
+
+    pub fn to_string(&self) -> Result<String, openstep_plist::error::Error> {
+        match self {
+            Font::Glyphs2(glyphs2) => openstep_plist::ser::to_string(glyphs2),
+            Font::Glyphs3(glyphs3) => openstep_plist::ser::to_string(glyphs3),
+        }
+    }
+
     pub fn save(&self, path: &path::Path) -> Result<(), Box<dyn std::error::Error>> {
-        let content = match self {
-            Font::Glyphs2(glyphs2) => openstep_plist::ser::to_string(glyphs2)?,
-            Font::Glyphs3(glyphs3) => openstep_plist::ser::to_string(glyphs3)?,
-        };
-        fs::write(path, content)?;
+        fs::write(path, self.to_string()?)?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use glyphs3::Shape;
-
     use super::*;
-    #[test]
-    fn test_load_everything() {
-        let file = glob::glob("resources/*.glyphs");
-        for entry in file.unwrap() {
-            let path = entry.unwrap();
-            println!("Loading {:?}", path);
-            let font = Font::load(&path).unwrap();
-            if font.as_glyphs2().is_some() {
-                let newfont = font.upgrade();
-                let outdir = path::Path::new("resources/upgraded/");
-                newfont
-                    .save(&outdir.join(path.file_name().unwrap()))
-                    .unwrap();
-            }
+    use glyphs3::Shape;
+    use pretty_assertions::assert_eq;
+    use rstest::rstest;
+    #[rstest]
+    fn test_load_upgrade(#[files("resources/*glyphs")] path: PathBuf) {
+        let font = Font::load(&path).unwrap();
+        if font.as_glyphs2().is_some() {
+            let newfont = font.upgrade();
+            let outdir = path::Path::new("resources/upgraded/");
+            newfont
+                .save(&outdir.join(path.file_name().unwrap()))
+                .unwrap();
         }
     }
 
@@ -109,5 +112,16 @@ mod tests {
             assert_eq!(component.component_glyph, "acutecomb");
             assert_eq!(component.position, (152.0, 0.0));
         }
+    }
+    use path::PathBuf;
+
+    #[rstest]
+    fn test_roundtrip(#[files("resources/*glyphs")] path: PathBuf) {
+        let raw_content = fs::read_to_string(path).unwrap();
+        let plist = Plist::parse(&raw_content).unwrap();
+        let font = Font::load_str(&raw_content).unwrap();
+        let serialised = font.to_string().unwrap();
+        let new_plist = Plist::parse(&serialised).unwrap();
+        assert_eq!(plist, new_plist);
     }
 }
