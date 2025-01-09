@@ -82,14 +82,12 @@ where
     S: serde::Serializer,
     T: CurlyBraceReceiver<f32, SIZE>,
 {
-    let mut seq = serializer.serialize_seq(None)?;
     let middle: String = value
         .as_parts()
         .into_iter()
         .map(|x| x.to_string())
-        .join(",");
-    seq.serialize_element(&format!("{{{}}}", middle))?;
-    seq.end()
+        .join(", ");
+    serializer.serialize_str(&format!("{{{}}}", middle))
 }
 
 pub(crate) fn deserialize_commify<'de, D, T, const SIZE: usize>(

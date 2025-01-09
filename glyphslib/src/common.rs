@@ -12,10 +12,10 @@ pub struct FeatureClass {
     /// A string containing space separated glyph names.
     code: String,
     /// The class will not be exported
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
     /// Notes
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
 
@@ -25,36 +25,36 @@ pub struct CustomParameter {
     pub name: String,
     /// Value of the custom parameters
     pub value: Plist,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FeaturePrefix {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// The name of the prefix
     name: String,
     /// A string containing feature code.
     code: String,
     /// The prefix will not be exported
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
     /// Notes
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Feature {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// The feature tag
     tag: String,
     /// A string containing feature code.
     code: String,
     /// The prefix will not be exported
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
     /// List of stylistic set labels
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -110,7 +110,7 @@ where
     *v == T::default()
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub enum GuideAlignment {
     #[default]
     #[serde(rename = "left")]
