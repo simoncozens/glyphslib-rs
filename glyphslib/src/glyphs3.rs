@@ -1,10 +1,7 @@
-use std::collections::BTreeMap;
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 use openstep_plist::{Dictionary, Plist};
-use serde::de::Visitor;
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, OneOrMany};
 
 use crate::common::{

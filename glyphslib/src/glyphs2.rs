@@ -7,10 +7,8 @@ use curlybraceserde::{
 };
 
 use openstep_plist::Dictionary;
-use serde::de::Visitor;
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, OneOrMany};
+use serde::{de::Visitor, ser::SerializeSeq, Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::common::{
     bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
@@ -722,7 +720,7 @@ impl<'de> Deserialize<'de> for Node {
 #[derive(Debug, Default, Clone)]
 struct NodeVisitor;
 
-impl<'de> Visitor<'de> for NodeVisitor {
+impl Visitor<'_> for NodeVisitor {
     type Value = Node;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

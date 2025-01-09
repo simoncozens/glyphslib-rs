@@ -1,9 +1,13 @@
-use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
-use serde::forward_to_deserialize_any;
+use serde::{
+    de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor},
+    forward_to_deserialize_any,
+};
 use smol_str::SmolStr;
 
-use crate::error::{Error, Result};
-use crate::Plist;
+use crate::{
+    error::{Error, Result},
+    Plist,
+};
 
 enum PathElement {
     Key(SmolStr),
@@ -39,7 +43,7 @@ impl<'de> Deserializer<'de> {
     }
 }
 
-impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
+impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     type Error = Error;
 
     // Look at the input data to decide what Serde data model type to
@@ -176,7 +180,7 @@ impl<'a, 'de> ArrayDeserializer<'a, 'de> {
     }
 }
 
-impl<'de, 'a> SeqAccess<'de> for ArrayDeserializer<'a, 'de> {
+impl<'de> SeqAccess<'de> for ArrayDeserializer<'_, 'de> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
@@ -207,7 +211,7 @@ impl<'a, 'de> DictDeserializer<'a, 'de> {
     }
 }
 
-impl<'de, 'a> MapAccess<'de> for DictDeserializer<'a, 'de> {
+impl<'de> MapAccess<'de> for DictDeserializer<'_, 'de> {
     type Error = Error;
 
     fn next_key_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>

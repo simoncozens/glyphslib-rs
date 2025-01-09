@@ -1,9 +1,7 @@
 use core::fmt;
-use std::error::Error;
 
 use itertools::Itertools;
-use serde::de::Visitor;
-use serde::ser::SerializeSeq;
+use serde::{de::Visitor, ser::SerializeSeq};
 
 // Well, this is going to get interesting.
 pub(crate) trait CurlyBraceReceiver<T, const N: usize> {
@@ -38,7 +36,7 @@ where
     }
 }
 
-impl<'de, const SIZE: usize, T> Visitor<'de> for CurlyBraceVisitor<SIZE, T>
+impl<const SIZE: usize, T> Visitor<'_> for CurlyBraceVisitor<SIZE, T>
 where
     T: CurlyBraceReceiver<f32, SIZE>,
 {
@@ -122,7 +120,7 @@ where
         }
     }
 }
-impl<'de, T> Visitor<'de> for CropRectVisitor<T>
+impl<T> Visitor<'_> for CropRectVisitor<T>
 where
     T: CropRectReceiver,
 {
