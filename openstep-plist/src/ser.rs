@@ -2,7 +2,7 @@ use serde::{ser, Serialize};
 
 use crate::{
     error::{Error, Result},
-    is_alnum_strict,
+    is_alnum_strict, is_numeric,
 };
 
 pub struct Serializer {
@@ -375,7 +375,10 @@ impl ser::SerializeStructVariant for &mut Serializer {
 }
 
 fn escape_string(buf: &mut String, s: &str) {
-    if !s.is_empty() && s.as_bytes().iter().all(|&b| is_alnum_strict(b)) {
+    if !s.is_empty()
+        && (s.as_bytes().iter().all(|&b| is_alnum_strict(b))
+            && !s.as_bytes().iter().all(|&b| is_numeric(b)))
+    {
         buf.push_str(s);
     } else {
         buf.push('"');
