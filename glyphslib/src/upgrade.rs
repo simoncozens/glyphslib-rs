@@ -217,8 +217,7 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
             stems: vec![], // XXX
             units_per_em: val.units_per_em,
             user_data: val.user_data,
-            version_major: val.version.major,
-            version_minor: val.version.minor,
+            version: val.version,
         };
         font.axes = axes;
         font

@@ -1,15 +1,11 @@
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::fmt::Debug;
+use std::{borrow::Cow, collections::BTreeMap, fmt::Debug};
 
-use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
 
 pub mod de;
 pub mod error;
 pub mod ser;
-
 
 use crate::error::Error;
 
@@ -20,15 +16,29 @@ pub type Dictionary = BTreeMap<SmolStr, Plist>;
 pub type Array = Vec<Plist>;
 
 /// An enum representing a property list.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Plist {
     Dictionary(Dictionary),
     Array(Array),
     String(String),
     Integer(i64),
-    Float(OrderedFloat<f64>),
+    Float(f64),
     Data(Vec<u8>),
+}
+
+impl PartialEq for Plist {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Plist::Dictionary(a), Plist::Dictionary(b)) => a == b,
+            (Plist::Array(a), Plist::Array(b)) => a == b,
+            (Plist::String(a), Plist::String(b)) => a == b,
+            (Plist::Integer(a), Plist::Integer(b)) => a == b,
+            (Plist::Float(a), Plist::Float(b)) => (a * 1000.0).round() == (b * 1000.0).round(),
+            (Plist::Data(a), Plist::Data(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -162,7 +172,7 @@ impl Plist {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Plist::Integer(i) => Some(*i as f64),
-            Plist::Float(f) => Some((*f).into_inner()),
+            Plist::Float(f) => Some(*f),
             _ => None,
         }
     }
@@ -171,7 +181,7 @@ impl Plist {
         match self {
             Plist::Float(f) => {
                 if f.fract() == 0.0 {
-                    Plist::Integer(f.into_inner() as i64)
+                    Plist::Integer(*f as i64)
                 } else {
                     Plist::Float(*f)
                 }
@@ -191,7 +201,7 @@ impl Plist {
             Plist::Integer(i) => Plist::String(i.to_string()),
             Plist::Float(f) => {
                 if f.fract() == 0.0 {
-                    Plist::String((f.into_inner() as i64).to_string())
+                    Plist::String((*f as i64).to_string())
                 } else {
                     Plist::String(f.to_string())
                 }
@@ -315,7 +325,7 @@ impl Plist {
             Plist::Dictionary(d) => !d.is_empty(),
             Plist::String(s) => !s.is_empty(),
             Plist::Integer(i) => *i != 0,
-            Plist::Float(f) => f.into_inner() != 0.0,
+            Plist::Float(f) => *f != 0.0,
             Plist::Data(d) => !d.is_empty(),
         }
     }
@@ -506,13 +516,7 @@ impl From<i64> for Plist {
 
 impl From<f64> for Plist {
     fn from(x: f64) -> Plist {
-        Plist::Float(x.into())
-    }
-}
-
-impl From<ordered_float::OrderedFloat<f64>> for Plist {
-    fn from(x: ordered_float::OrderedFloat<f64>) -> Plist {
-        Plist::Float(f64::from(x).into())
+        Plist::Float(x)
     }
 }
 

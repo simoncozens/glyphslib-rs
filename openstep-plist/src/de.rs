@@ -105,7 +105,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         V: Visitor<'de>,
     {
         match self.element() {
-            Plist::Float(f) => visitor.visit_f64(f.into_inner()),
+            Plist::Float(f) => visitor.visit_f64(*f),
             _ => Err(Error::UnexpectedDataType {
                 expected: "float",
                 found: self.element().name(),

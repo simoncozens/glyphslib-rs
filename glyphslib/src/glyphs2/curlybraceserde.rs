@@ -1,7 +1,7 @@
 use core::fmt;
 
 use itertools::Itertools;
-use serde::{de::Visitor, ser::SerializeSeq};
+use serde::de::Visitor;
 
 // Well, this is going to get interesting.
 pub(crate) trait CurlyBraceReceiver<T, const N: usize> {

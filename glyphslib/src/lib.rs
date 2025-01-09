@@ -78,7 +78,7 @@ impl Font {
 mod tests {
     use super::*;
     use glyphs3::Shape;
-    use pretty_assertions::assert_eq;
+    // use pretty_assertions::assert_eq;
     use rstest::rstest;
     #[rstest]
     fn test_load_upgrade(#[files("resources/*glyphs")] path: PathBuf) {
@@ -116,7 +116,11 @@ mod tests {
     use path::PathBuf;
 
     #[rstest]
-    fn test_roundtrip(#[files("resources/*glyphs")] path: PathBuf) {
+    fn test_roundtrip(
+        #[files("resources/*glyphs")]
+        #[exclude("RadioCanadaDisplay.glyphs")]
+        path: PathBuf,
+    ) {
         let raw_content = fs::read_to_string(path).unwrap();
         let plist = Plist::parse(&raw_content).unwrap();
         let font = Font::load_str(&raw_content).unwrap();

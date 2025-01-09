@@ -6,7 +6,7 @@ use serde_with::{serde_as, OneOrMany};
 
 use crate::common::{
     bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
-    Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType,
+    Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType, Version,
 };
 
 pub(crate) fn version_two() -> i32 {
@@ -98,10 +98,8 @@ pub struct Glyphs3 {
     pub units_per_em: i32,
     #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub version_minor: i32,
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub version_major: i32,
+    #[serde(flatten, default, skip_serializing_if = "is_default")]
+    pub version: Version,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -343,7 +341,7 @@ pub struct Glyph {
     pub production: Option<String>,
     #[serde(default, skip_serializing_if = "is_default")]
     pub script: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default, skip_serializing_if = "is_default", rename = "subCategory")]
     pub subcategory: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
