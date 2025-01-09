@@ -14,7 +14,6 @@ smol_str = { version = "0.3", features = ["serde"] }
 
 [dev-dependencies]
 criterion = "0.3"
-otspec = { path = "../otspec" }
 
 [[bench]]
 name = "bigfile"
