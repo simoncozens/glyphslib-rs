@@ -9,6 +9,8 @@ pub struct Serializer {
     output: String,
 }
 
+const FLOAT_PRECISION: i32 = 5;
+
 pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: Serialize,
@@ -76,7 +78,10 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_f64(self, v: f64) -> Result<()> {
-        self.output.push_str(&format!("{v}"));
+        self.output.push_str(&format!(
+            "{}",
+            (v * 10_f64.powi(FLOAT_PRECISION)).round() / 10_f64.powi(FLOAT_PRECISION)
+        ));
         Ok(())
     }
 
