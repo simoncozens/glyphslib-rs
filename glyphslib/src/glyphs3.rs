@@ -60,7 +60,7 @@ pub struct Glyphs3 {
     #[serde(rename = "fontMaster", skip_serializing_if = "Vec::is_empty", default)]
     pub masters: Vec<Master>,
     /// Glyphs
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub glyphs: Vec<Glyph>,
     /// Instances
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -98,10 +98,10 @@ pub struct Glyphs3 {
     pub units_per_em: i32,
     #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
-    #[serde(default, rename = "versionMajor", skip_serializing_if = "is_default")]
-    pub version_major: i32,
-    #[serde(default, rename = "versionMinor", skip_serializing_if = "is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub version_minor: i32,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub version_major: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -664,6 +664,13 @@ pub struct Instance {
     pub name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub properties: Vec<Property>,
+    #[serde(
+        rename = "type",
+        default,
+        skip_serializing_if = "is_default",
+        deserialize_with = "deserialize_export_type"
+    )]
+    pub export_type: ExportType,
     #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
     #[serde(
@@ -678,6 +685,32 @@ pub struct Instance {
         skip_serializing_if = "Option::is_none"
     )]
     pub width_class: Option<Plist>,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub enum ExportType {
+    #[default]
+    Static,
+    #[serde(rename = "variable")]
+    Variable,
+}
+
+fn deserialize_export_type<'de, D>(deserializer: D) -> Result<ExportType, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let variant = String::deserialize(deserializer)?;
+    Ok(match variant.as_str() {
+        "static" => ExportType::Static,
+        "variable" => ExportType::Variable,
+        _ => {
+            return Err(serde::de::Error::custom(format!(
+                "unknown export type: {}",
+                variant
+            )))
+        }
+    })
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

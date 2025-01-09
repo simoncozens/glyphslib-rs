@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::glyphs2;
-use crate::glyphs3::{self, Axis, LocalizedPropertyKey, Metric, MetricType, MetricValue, Property};
+use crate::{
+    glyphs2,
+    glyphs3::{self, Axis, LocalizedPropertyKey, Metric, MetricType, MetricValue, Property},
+};
 
 impl From<glyphs2::Node> for glyphs3::Node {
     fn from(val: glyphs2::Node) -> Self {
@@ -215,8 +217,8 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
             stems: vec![], // XXX
             units_per_em: val.units_per_em,
             user_data: val.user_data,
-            version_major: val.version_major,
-            version_minor: val.version_minor,
+            version_major: val.version.major,
+            version_minor: val.version.minor,
         };
         font.axes = axes;
         font

@@ -12,7 +12,7 @@ use serde_with::serde_as;
 
 use crate::common::{
     bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
-    Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType,
+    Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType, Version,
 };
 
 fn is_one_hundred(value: &i32) -> bool {
@@ -26,7 +26,11 @@ fn one_hundred() -> i32 {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Glyphs2 {
     /// The build number of the app
-    #[serde(rename = ".appVersion", default)]
+    #[serde(
+        rename = ".appVersion",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub app_version: String,
     /// List of strings used in the edit window
     #[serde(
@@ -127,10 +131,8 @@ pub struct Glyphs2 {
     pub units_per_em: i32,
     #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
-    #[serde(rename = "versionMajor", default, skip_serializing_if = "is_default")]
-    pub version_major: i32,
-    #[serde(rename = "versionMinor", default, skip_serializing_if = "is_default")]
-    pub version_minor: i32,
+    #[serde(flatten, default, skip_serializing_if = "is_default")]
+    pub version: Version,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]

@@ -60,7 +60,7 @@ pub struct Feature {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     labels: Vec<StylisticSetLabel>,
     /// Notes
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
 
@@ -137,4 +137,12 @@ pub enum NodeType {
     CurveSmooth,
     #[serde(rename = "qs")]
     QCurveSmooth,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+pub struct Version {
+    #[serde(default, rename = "versionMajor")]
+    pub major: i32,
+    #[serde(default, rename = "versionMinor")]
+    pub minor: i32,
 }
