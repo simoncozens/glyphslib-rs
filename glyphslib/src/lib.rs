@@ -1,4 +1,4 @@
-mod common;
+pub mod common;
 pub mod glyphs2;
 pub mod glyphs3;
 mod upgrade;
