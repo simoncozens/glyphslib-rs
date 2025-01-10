@@ -102,12 +102,12 @@ pub struct Glyphs3 {
     pub version: Version,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Number {
     name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Metric {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
