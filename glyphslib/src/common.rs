@@ -110,7 +110,7 @@ where
     *v == T::default()
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Copy)]
 pub enum GuideAlignment {
     #[default]
     #[serde(rename = "left")]
@@ -121,7 +121,7 @@ pub enum GuideAlignment {
     Right,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Copy)]
 pub enum NodeType {
     #[serde(rename = "l")]
     Line,

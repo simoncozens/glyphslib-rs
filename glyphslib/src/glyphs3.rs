@@ -117,7 +117,7 @@ pub struct Metric {
     pub metric_type: Option<MetricType>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq)]
 pub enum MetricType {
     #[serde(rename = "ascender")]
     Ascender,
@@ -686,7 +686,7 @@ pub struct Instance {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
 pub enum ExportType {
     #[default]
     Static,
@@ -739,7 +739,7 @@ impl Property {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum LocalizedPropertyKey {
     #[serde(rename = "familyNames")]
     FamilyNames,
@@ -761,7 +761,7 @@ pub enum LocalizedPropertyKey {
     CompatibleFullNames,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum SingularPropertyKey {
     #[serde(rename = "designerURL")]
     DesignerUrl,
