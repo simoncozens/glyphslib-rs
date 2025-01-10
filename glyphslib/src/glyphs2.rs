@@ -398,33 +398,32 @@ pub struct Glyph {
         default,
         deserialize_with = "deserialize_comma_hexstring",
         serialize_with = "serialize_comma_hexstring",
-        skip_serializing_if = "Option::is_none"
+        skip_serializing_if = "Vec::is_empty"
     )]
-    pub unicode: Option<Vec<u32>>,
+    pub unicode: Vec<u32>,
 }
 
-fn serialize_comma_hexstring<S>(value: &Option<Vec<u32>>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_comma_hexstring<S>(value: &[u32], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    if let Some(v) = value {
-        if v.len() == 1 {
-            return serializer.serialize_str(&format!("{:04X}", v[0]));
-        }
-        let mut seq = serializer.serialize_seq(None)?;
-        for (ix, i) in v.iter().enumerate() {
-            seq.serialize_element(&format!("{:04X}", i))?;
-            if ix < v.len() - 1 {
-                seq.serialize_element(",")?;
-            }
-        }
-        seq.end()
-    } else {
-        serializer.serialize_none()
+    if value.is_empty() {
+        return serializer.serialize_none();
     }
+    if value.len() == 1 {
+        return serializer.serialize_str(&format!("{:04X}", value[0]));
+    }
+    let mut seq = serializer.serialize_seq(None)?;
+    for (ix, i) in value.iter().enumerate() {
+        seq.serialize_element(&format!("{:04X}", i))?;
+        if ix < value.len() - 1 {
+            seq.serialize_element(",")?;
+        }
+    }
+    seq.end()
 }
 
-fn deserialize_comma_hexstring<'de, D>(deserializer: D) -> Result<Option<Vec<u32>>, D::Error>
+fn deserialize_comma_hexstring<'de, D>(deserializer: D) -> Result<Vec<u32>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -434,7 +433,7 @@ where
     for codepoint in codepoints {
         result.push(u32::from_str_radix(codepoint, 16).map_err(serde::de::Error::custom)?);
     }
-    Ok(Some(result))
+    Ok(result)
 }
 
 #[serde_as]

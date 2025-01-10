@@ -345,9 +345,9 @@ pub struct Glyph {
     pub subcategory: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub unicode: Option<Vec<u32>>,
+    #[serde_as(as = "OneOrMany<_>")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unicode: Vec<u32>,
     /// User data
     #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
