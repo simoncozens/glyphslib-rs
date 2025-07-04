@@ -1,4 +1,5 @@
 use serde::{ser, Serialize};
+use smol_str::{SmolStr, SmolStrBuilder};
 
 use crate::{
     error::{Error, Result},
@@ -6,7 +7,15 @@ use crate::{
 };
 
 pub struct Serializer {
-    output: String,
+    output: Vec<SmolStr>,
+}
+
+macro_rules! forward_to {
+    ($method_from: ident, $t: ty, $method_to:ident, $conversion:expr) => {
+        fn $method_from(self, v: $t) -> Result<()> {
+            self.$method_to($conversion(v))
+        }
+    };
 }
 
 const FLOAT_PRECISION: i32 = 5;
@@ -15,12 +24,10 @@ pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer {
-        output: String::new(),
-    };
+    let mut serializer = Serializer { output: Vec::new() };
     value.serialize(&mut serializer)?;
-    serializer.output.push(';');
-    Ok(serializer.output)
+    serializer.output.push(SmolStr::new_static(";"));
+    Ok(serializer.output.join(""))
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -35,58 +42,39 @@ impl ser::Serializer for &mut Serializer {
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<()> {
-        self.output += if v { "1" } else { "0" };
+        self.output
+            .push(SmolStr::new_static(if v { "1" } else { "0" }));
         Ok(())
     }
-
-    fn serialize_i8(self, v: i8) -> Result<()> {
-        self.serialize_i64(i64::from(v))
-    }
-
-    fn serialize_i16(self, v: i16) -> Result<()> {
-        self.serialize_i64(i64::from(v))
-    }
-
-    fn serialize_i32(self, v: i32) -> Result<()> {
-        self.serialize_i64(i64::from(v))
-    }
+    forward_to!(serialize_i8, i8, serialize_i64, i64::from);
+    forward_to!(serialize_i16, i16, serialize_i64, i64::from);
+    forward_to!(serialize_i32, i32, serialize_i64, i64::from);
+    forward_to!(serialize_u8, u8, serialize_u64, u64::from);
+    forward_to!(serialize_u16, u16, serialize_u64, u64::from);
+    forward_to!(serialize_u32, u32, serialize_u64, u64::from);
 
     fn serialize_i64(self, v: i64) -> Result<()> {
-        self.output.push_str(&format!("{v}"));
+        self.output.push(SmolStr::new(format!("{v}")));
         Ok(())
-    }
-
-    fn serialize_u8(self, v: u8) -> Result<()> {
-        self.serialize_u64(u64::from(v))
-    }
-
-    fn serialize_u16(self, v: u16) -> Result<()> {
-        self.serialize_u64(u64::from(v))
-    }
-
-    fn serialize_u32(self, v: u32) -> Result<()> {
-        self.serialize_u64(u64::from(v))
     }
 
     fn serialize_u64(self, v: u64) -> Result<()> {
-        self.output.push_str(&format!("{v}"));
+        self.output.push(SmolStr::new(format!("{v}")));
         Ok(())
     }
 
-    fn serialize_f32(self, v: f32) -> Result<()> {
-        self.serialize_f64(f64::from(v))
-    }
+    forward_to!(serialize_f32, f32, serialize_f64, f64::from);
 
     fn serialize_f64(self, v: f64) -> Result<()> {
-        self.output.push_str(&format!(
+        self.output.push(SmolStr::new(format!(
             "{}",
             (v * 10_f64.powi(FLOAT_PRECISION)).round() / 10_f64.powi(FLOAT_PRECISION)
-        ));
+        )));
         Ok(())
     }
 
     fn serialize_char(self, v: char) -> Result<()> {
-        self.output.push(v);
+        self.output.push(SmolStr::new_inline(&format!("{v}")));
         Ok(())
     }
 
@@ -96,11 +84,15 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_bytes(self, data: &[u8]) -> Result<()> {
-        self.output.push('<');
+        let mut builder = SmolStrBuilder::new();
+        builder.push('<');
         for byte in data {
-            self.output.extend(hex_digits_for_byte(*byte))
+            let [one, two] = hex_digits_for_byte(*byte);
+            builder.push(one);
+            builder.push(two);
         }
-        self.output.push('>');
+        builder.push('>');
+        self.output.push(builder.finish());
         Ok(())
     }
 
@@ -117,7 +109,7 @@ impl ser::Serializer for &mut Serializer {
 
     fn serialize_unit(self) -> Result<()> {
         // ????
-        self.output += "null";
+        self.output.push(SmolStr::new_static("null"));
         Ok(())
     }
 
@@ -151,16 +143,16 @@ impl ser::Serializer for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        self.output += "{";
+        self.output.push(SmolStr::new_static("{"));
         variant.serialize(&mut *self)?;
-        self.output += " = ";
+        self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut *self)?;
-        self.output += ";}";
+        self.output.push(SmolStr::new_static(";}"));
         Ok(())
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        self.output += "(";
+        self.output.push(SmolStr::new_static("("));
         Ok(self)
     }
 
@@ -184,14 +176,14 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.output += "{";
+        self.output.push(SmolStr::new_static("{"));
         variant.serialize(&mut *self)?;
-        self.output += " = (";
+        self.output.push(SmolStr::new_static(" = ("));
         Ok(self)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        self.output += "{";
+        self.output.push(SmolStr::new_static("{"));
         Ok(self)
     }
 
@@ -206,9 +198,9 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.output += "{structvariant";
+        self.output.push(SmolStr::new_static("{"));
         variant.serialize(&mut *self)?;
-        self.output += " = {";
+        self.output.push(SmolStr::new_static(" = }"));
         Ok(self)
     }
 }
@@ -224,15 +216,15 @@ impl ser::SerializeSeq for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with('(') {
-            self.output += ", ";
+        if !self.output.ends_with(&[SmolStr::new_static("(")]) {
+            self.output.push(SmolStr::new_static(", "));
         }
         value.serialize(&mut **self)
     }
 
     // Close the sequence.
     fn end(self) -> Result<()> {
-        self.output += ")";
+        self.output.push(SmolStr::new_static(")"));
         Ok(())
     }
 }
@@ -246,14 +238,14 @@ impl ser::SerializeTuple for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with('(') {
-            self.output += ", ";
+        if !self.output.ends_with(&[SmolStr::new_static("(")]) {
+            self.output.push(SmolStr::new_static(", "));
         }
         value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        self.output += ")";
+        self.output.push(SmolStr::new_static(")"));
         Ok(())
     }
 }
@@ -267,14 +259,14 @@ impl ser::SerializeTupleStruct for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with('(') {
-            self.output += ", ";
+        if !self.output.ends_with(&[SmolStr::new_static("(")]) {
+            self.output.push(SmolStr::new_static(", "));
         }
         value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        self.output += ")";
+        self.output.push(SmolStr::new_static(")"));
         Ok(())
     }
 }
@@ -287,14 +279,14 @@ impl ser::SerializeTupleVariant for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with('(') {
-            self.output += ", ";
+        if !self.output.ends_with(&[SmolStr::new_static("(")]) {
+            self.output.push(SmolStr::new_static(", "));
         }
         value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        self.output += ");}";
+        self.output.push(SmolStr::new_static(");}"));
         Ok(())
     }
 }
@@ -308,9 +300,9 @@ impl ser::SerializeMap for &mut Serializer {
         T: ?Sized + Serialize,
     {
         // if !self.output.ends_with('{') {
-        //     self.output += ";";
+        //     self.output.push(SmolStr::new_static(";"));
         // }
-        self.output += "\n";
+        self.output.push(SmolStr::new_static("\n"));
         key.serialize(&mut **self)
     }
 
@@ -318,14 +310,14 @@ impl ser::SerializeMap for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        self.output += " = ";
+        self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut **self)?;
-        self.output += ";";
+        self.output.push(SmolStr::new_static(";"));
         Ok(())
     }
 
     fn end(self) -> Result<()> {
-        self.output += "\n}";
+        self.output.push(SmolStr::new_static("\n}"));
         Ok(())
     }
 }
@@ -338,16 +330,20 @@ impl ser::SerializeStruct for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        self.output += "\n";
+        self.output.push(SmolStr::new_static("\n"));
         key.serialize(&mut **self)?;
-        self.output += " = ";
+        self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut **self)?;
-        self.output += "; ";
+        self.output.push(SmolStr::new_static("; "));
         Ok(())
     }
 
     fn end(self) -> Result<()> {
-        self.output = self.output.trim_end().to_string() + "\n}";
+        if self.output.last() == Some(&SmolStr::new_static("; ")) {
+            self.output.pop();
+            self.output.push(SmolStr::new_static(";"));
+        }
+        self.output.push(SmolStr::new_static("\n}"));
         Ok(())
     }
 }
@@ -360,47 +356,48 @@ impl ser::SerializeStructVariant for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with('{') {
-            self.output += "; ";
+        if !self.output.ends_with(&[SmolStr::new_static("{")]) {
+            self.output.push(SmolStr::new_static("; "));
         }
         key.serialize(&mut **self)?;
-        self.output += " = ";
+        self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        self.output += "};}";
+        self.output.push(SmolStr::new_static("};}"));
         Ok(())
     }
 }
 
-fn escape_string(buf: &mut String, s: &str) {
+fn escape_string(buf: &mut Vec<SmolStr>, s: &str) {
     if !s.is_empty()
         && (s.as_bytes().iter().all(|&b| is_alnum_strict(b))
             && !s.as_bytes().iter().all(|&b| is_numeric(b)))
     {
-        buf.push_str(s);
+        buf.push(SmolStr::new(s));
     } else {
-        buf.push('"');
+        buf.push(SmolStr::new_static("\""));
         let mut start = 0;
         let mut ix = start;
         while ix < s.len() {
             let b = s.as_bytes()[ix];
             match b {
                 b'"' | b'\\' => {
-                    buf.push_str(&s[start..ix]);
-                    buf.push('\\');
+                    buf.push(SmolStr::new(&s[start..ix]));
+                    buf.push(SmolStr::new_static("\\"));
                     start = ix;
                 }
                 _ => (),
             }
             ix += 1;
         }
-        buf.push_str(&s[start..]);
-        buf.push('"');
+        buf.push(SmolStr::new(&s[start..]));
+        buf.push(SmolStr::new_static("\""));
     }
 }
 
+#[inline]
 fn hex_digits_for_byte(byte: u8) -> [char; 2] {
     fn to_hex_digit(val: u8) -> char {
         match val {
