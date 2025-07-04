@@ -29,11 +29,9 @@ impl Font {
         let plist = Plist::parse(raw_content).unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
         if is_glyphs3(&plist) {
-            println!("Is glyphs 3");
             let glyphs3: Glyphs3 = serde_path_to_error::deserialize(deserializer)?;
             Ok(Font::Glyphs3(glyphs3))
         } else {
-            println!("Is glyphs 2");
             let glyphs2: Glyphs2 = serde_path_to_error::deserialize(deserializer)?;
             Ok(Font::Glyphs2(glyphs2))
         }
