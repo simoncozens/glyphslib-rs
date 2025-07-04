@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 
 mod curlybraceserde;
 use curlybraceserde::{
@@ -398,7 +398,8 @@ pub struct Glyph {
         default,
         deserialize_with = "deserialize_comma_hexstring",
         serialize_with = "serialize_comma_hexstring",
-        skip_serializing_if = "Vec::is_empty"
+        skip_serializing_if = "Vec::is_empty",
+        alias = "unicodes"
     )]
     pub unicode: Vec<u32>,
 }
@@ -415,7 +416,7 @@ where
     }
     let mut seq = serializer.serialize_seq(None)?;
     for (ix, i) in value.iter().enumerate() {
-        seq.serialize_element(&format!("{:04X}", i))?;
+        seq.serialize_element(&format!("{i:04X}"))?;
         if ix < value.len() - 1 {
             seq.serialize_element(",")?;
         }
@@ -427,13 +428,52 @@ fn deserialize_comma_hexstring<'de, D>(deserializer: D) -> Result<Vec<u32>, D::E
 where
     D: serde::Deserializer<'de>,
 {
-    let s = String::deserialize(deserializer)?;
-    let codepoints = s.split(',');
-    let mut result = Vec::new();
-    for codepoint in codepoints {
-        result.push(u32::from_str_radix(codepoint, 16).map_err(serde::de::Error::custom)?);
+    deserializer.deserialize_any(CommaHexStringVisitor)
+}
+
+struct CommaHexStringVisitor;
+
+impl<'de> Visitor<'de> for CommaHexStringVisitor {
+    type Value = Vec<u32>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a Unicode value")
     }
-    Ok(result)
+
+    fn visit_u64<E>(self, value: u64) -> Result<Vec<u32>, E>
+    where
+        E: serde::de::Error,
+    {
+        // If the value is a single integer - it isn't! It's a hex string
+        let s = format!("{value:04X}");
+
+        Ok(vec![
+            u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
+        ])
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Vec<u32>, E>
+    where
+        E: serde::de::Error,
+    {
+        // If the value is a single integer - it isn't! It's a hex string
+        let s = format!("{value:04X}");
+
+        Ok(vec![
+            u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
+        ])
+    }
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let codepoints = v.split(',');
+        let mut result = Vec::new();
+        for codepoint in codepoints {
+            result.push(u32::from_str_radix(codepoint, 16).map_err(serde::de::Error::custom)?);
+        }
+        Ok(result)
+    }
 }
 
 #[serde_as]
