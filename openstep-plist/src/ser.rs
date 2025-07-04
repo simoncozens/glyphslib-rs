@@ -26,7 +26,7 @@ where
 {
     let mut serializer = Serializer { output: Vec::new() };
     value.serialize(&mut serializer)?;
-    serializer.output.push(SmolStr::new_static(";"));
+    serializer.output.push(SmolStr::new_static("\n"));
     Ok(serializer.output.join(""))
 }
 
@@ -143,7 +143,7 @@ impl ser::Serializer for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        self.output.push(SmolStr::new_static("{"));
+        self.output.push(SmolStr::new_static("{newtype"));
         variant.serialize(&mut *self)?;
         self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut *self)?;
@@ -152,12 +152,13 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        self.output.push(SmolStr::new_static("("));
+        self.output.push(SmolStr::new_static("(\n"));
         Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
-        self.serialize_seq(Some(len))
+        self.output.push(SmolStr::new_static("("));
+        Ok(self)
     }
 
     // Tuple structs look just like sequences in JSON.
@@ -176,7 +177,7 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        self.output.push(SmolStr::new_static("{"));
+        self.output.push(SmolStr::new_static("{tuplevariant"));
         variant.serialize(&mut *self)?;
         self.output.push(SmolStr::new_static(" = ("));
         Ok(self)
@@ -198,7 +199,7 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        self.output.push(SmolStr::new_static("{"));
+        self.output.push(SmolStr::new_static("{structvariant"));
         variant.serialize(&mut *self)?;
         self.output.push(SmolStr::new_static(" = }"));
         Ok(self)
@@ -216,20 +217,24 @@ impl ser::SerializeSeq for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with(&[SmolStr::new_static("(")]) {
-            self.output.push(SmolStr::new_static(", "));
+        if !self.output.ends_with(&[SmolStr::new_static("(\n")]) {
+            self.output.push(SmolStr::new_static(",\n"));
         }
         value.serialize(&mut **self)
     }
 
     // Close the sequence.
     fn end(self) -> Result<()> {
+        if !self.output.ends_with(&[SmolStr::new_static("(\n")]) {
+            self.output.push(SmolStr::new_static("\n"));
+        }
         self.output.push(SmolStr::new_static(")"));
         Ok(())
     }
 }
 
 // Same thing but for tuples.
+// Tuple (pos, node, etc.) have no space between elements and no newlines.
 impl ser::SerializeTuple for &mut Serializer {
     type Ok = ();
     type Error = Error;
@@ -239,7 +244,7 @@ impl ser::SerializeTuple for &mut Serializer {
         T: ?Sized + Serialize,
     {
         if !self.output.ends_with(&[SmolStr::new_static("(")]) {
-            self.output.push(SmolStr::new_static(", "));
+            self.output.push(SmolStr::new_static(","));
         }
         value.serialize(&mut **self)
     }
@@ -334,12 +339,12 @@ impl ser::SerializeStruct for &mut Serializer {
         key.serialize(&mut **self)?;
         self.output.push(SmolStr::new_static(" = "));
         value.serialize(&mut **self)?;
-        self.output.push(SmolStr::new_static("; "));
+        self.output.push(SmolStr::new_static(";"));
         Ok(())
     }
 
     fn end(self) -> Result<()> {
-        if self.output.last() == Some(&SmolStr::new_static("; ")) {
+        if self.output.last() == Some(&SmolStr::new_static(";")) {
             self.output.pop();
             self.output.push(SmolStr::new_static(";"));
         }
@@ -479,7 +484,7 @@ tag = wght;
             name: "Weight".to_string(),
             tag: "wght".to_string(),
         }];
-        let s = to_string(&foo).unwrap().replace("\n", "");
-        assert_eq!(s, r#"({hidden = 1; name = Weight; tag = wght;});"#);
+        let s = to_string(&foo).unwrap().replace("\n", " ");
+        assert_eq!(s, r#"({ hidden = 1; name = Weight; tag = wght; });"#);
     }
 }

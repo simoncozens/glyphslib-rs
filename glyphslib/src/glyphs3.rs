@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 use openstep_plist::{Dictionary, Plist};
-use serde::{de::Visitor, ser::SerializeSeq, Deserialize, Deserializer, Serialize};
+use serde::{de::Visitor, ser::SerializeTuple, Deserialize, Deserializer, Serialize};
 use serde_with::{serde_as, OneOrMany};
 
 use crate::common::{
@@ -531,7 +531,7 @@ impl Serialize for Node {
     where
         S: serde::Serializer,
     {
-        let mut seq = serializer.serialize_seq(Some(3))?;
+        let mut seq = serializer.serialize_tuple(3)?;
         seq.serialize_element(&self.x)?;
         seq.serialize_element(&self.y)?;
         seq.serialize_element(&self.node_type)?;

@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 pub struct FeatureClass {
     #[serde(default)]
     pub automatic: bool,
-    /// The name of the class
-    name: String,
     /// A string containing space separated glyph names.
     code: String,
+    /// The name of the class
+    name: String,
     /// The class will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
@@ -33,10 +33,10 @@ pub struct CustomParameter {
 pub struct FeaturePrefix {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
-    /// The name of the prefix
-    name: String,
     /// A string containing feature code.
     code: String,
+    /// The name of the prefix
+    name: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
@@ -49,11 +49,11 @@ pub struct FeaturePrefix {
 pub struct Feature {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
+    /// A string containing feature code.
+    code: String,
     /// The feature tag
     #[serde(alias = "name")]
     tag: String,
-    /// A string containing feature code.
-    code: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
