@@ -50,6 +50,7 @@ pub struct Feature {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// The feature tag
+    #[serde(alias = "name")]
     tag: String,
     /// A string containing feature code.
     code: String,
