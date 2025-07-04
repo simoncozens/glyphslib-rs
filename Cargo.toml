@@ -1,8 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = [ 
-"glyphslib",
-"openstep-plist"
-]
+members = ["glyphslib", "openstep-plist"]
 
+[workspace.dependencies]
+itertools = "0.14.0"
