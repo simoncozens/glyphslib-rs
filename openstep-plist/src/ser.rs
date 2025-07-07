@@ -156,7 +156,7 @@ impl ser::Serializer for &mut Serializer {
         Ok(self)
     }
 
-    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
         self.output.push(SmolStr::new_static("("));
         Ok(self)
     }
