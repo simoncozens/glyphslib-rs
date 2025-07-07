@@ -6,7 +6,8 @@ use std::{fs, path};
 
 use glyphs2::Glyphs2;
 use glyphs3::Glyphs3;
-use openstep_plist::{de::Deserializer, Plist};
+use openstep_plist::de::Deserializer;
+pub use openstep_plist::Plist;
 
 fn is_glyphs3(plist: &Plist) -> bool {
     plist
