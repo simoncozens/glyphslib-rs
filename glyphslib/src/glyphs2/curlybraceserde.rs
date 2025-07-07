@@ -54,8 +54,7 @@ where
         let part_len = parts.clone().count();
         if part_len != SIZE {
             return Err(E::custom(format!(
-                "wrong number of parts: expected {}, found {}",
-                SIZE, part_len
+                "wrong number of parts: expected {SIZE}, found {part_len}"
             )));
         }
         Ok(T::new(
@@ -63,12 +62,12 @@ where
                 .map(|s| {
                     s.trim()
                         .parse::<f32>()
-                        .map_err(|e| E::custom(format!("failed to parse '{}' as f32: {}", s, e)))
+                        .map_err(|e| E::custom(format!("failed to parse '{s}' as f32: {e}")))
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .try_into()
                 .map_err(|e: Vec<f32>| {
-                    E::custom(format!("failed to parse '{}' as f32: got {:?}", value, e))
+                    E::custom(format!("failed to parse '{value}' as f32: got {e:?}"))
                 })?,
         ))
     }
@@ -87,7 +86,7 @@ where
         .into_iter()
         .map(|x| x.to_string())
         .join(", ");
-    serializer.serialize_str(&format!("{{{}}}", middle))
+    serializer.serialize_str(&format!("{{{middle}}}"))
 }
 
 pub(crate) fn deserialize_commify<'de, D, T, const SIZE: usize>(

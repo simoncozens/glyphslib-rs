@@ -160,8 +160,7 @@ impl<'de> Deserialize<'de> for MetricType {
             "italic angle" => MetricType::ItalicAngle,
             _ => {
                 return Err(serde::de::Error::custom(format!(
-                    "unknown metric type: {}",
-                    variant
+                    "unknown metric type: {variant}",
                 )))
             }
         })
@@ -704,8 +703,7 @@ where
         "variable" => ExportType::Variable,
         _ => {
             return Err(serde::de::Error::custom(format!(
-                "unknown export type: {}",
-                variant
+                "unknown export type: {variant}"
             )))
         }
     })
