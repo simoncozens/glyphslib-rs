@@ -3,6 +3,11 @@ name = "glyphslib"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "glyphslib-roundtrip"
+path = "src/bin/roundtrip.rs"
+
+
 [dev-dependencies]
 glob = "0.3.0"
 pretty_assertions = "1.4.1"
