@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FeatureClass {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// A string containing space separated glyph names.
     code: String,
@@ -51,9 +51,6 @@ pub struct Feature {
     pub automatic: bool,
     /// A string containing feature code.
     code: String,
-    /// The feature tag
-    #[serde(alias = "name")]
-    tag: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
@@ -63,6 +60,9 @@ pub struct Feature {
     /// Notes
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// The feature tag
+    #[serde(alias = "name")]
+    tag: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]

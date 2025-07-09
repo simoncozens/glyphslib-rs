@@ -1,13 +1,11 @@
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
 
-mod curlybraceserde;
-use curlybraceserde::{
-    deserialize_commify, serialize_commify, CropRectReceiver, CropRectVisitor, CurlyBraceReceiver,
-    CurlyBraceVisitor,
+use crate::serde::{
+    deserialize_comma_hexstring, deserialize_commify, serialize_comma_hexstring, serialize_commify,
 };
 
 use openstep_plist::Dictionary;
-use serde::{de::Visitor, ser::SerializeSeq, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::common::{
@@ -234,35 +232,6 @@ pub struct AlignmentZone {
     pub overshoot: f32,
 }
 
-impl<'de> Deserialize<'de> for AlignmentZone {
-    fn deserialize<D>(deserializer: D) -> Result<AlignmentZone, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(CurlyBraceVisitor::<2, AlignmentZone>::default())
-    }
-}
-impl Serialize for AlignmentZone {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serialize_commify(self, serializer)
-    }
-}
-
-impl CurlyBraceReceiver<f32, 2> for AlignmentZone {
-    fn new(values: [f32; 2]) -> Self {
-        AlignmentZone {
-            position: values[0],
-            overshoot: values[1],
-        }
-    }
-    fn as_parts(&self) -> [f32; 2] {
-        [self.position, self.overshoot]
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Instance {
     /// Instance custom parameters
@@ -404,78 +373,6 @@ pub struct Glyph {
     pub unicode: Vec<u32>,
 }
 
-fn serialize_comma_hexstring<S>(value: &[u32], serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if value.is_empty() {
-        return serializer.serialize_none();
-    }
-    if value.len() == 1 {
-        return serializer.serialize_str(&format!("{:04X}", value[0]));
-    }
-    let mut seq = serializer.serialize_seq(None)?;
-    for (ix, i) in value.iter().enumerate() {
-        seq.serialize_element(&format!("{i:04X}"))?;
-        if ix < value.len() - 1 {
-            seq.serialize_element(",")?;
-        }
-    }
-    seq.end()
-}
-
-fn deserialize_comma_hexstring<'de, D>(deserializer: D) -> Result<Vec<u32>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    deserializer.deserialize_any(CommaHexStringVisitor)
-}
-
-struct CommaHexStringVisitor;
-
-impl<'de> Visitor<'de> for CommaHexStringVisitor {
-    type Value = Vec<u32>;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a Unicode value")
-    }
-
-    fn visit_u64<E>(self, value: u64) -> Result<Vec<u32>, E>
-    where
-        E: serde::de::Error,
-    {
-        // If the value is a single integer - it isn't! It's a hex string
-        let s = format!("{value:04X}");
-
-        Ok(vec![
-            u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
-        ])
-    }
-
-    fn visit_i64<E>(self, value: i64) -> Result<Vec<u32>, E>
-    where
-        E: serde::de::Error,
-    {
-        // If the value is a single integer - it isn't! It's a hex string
-        let s = format!("{value:04X}");
-
-        Ok(vec![
-            u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
-        ])
-    }
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        let codepoints = v.split(',');
-        let mut result = Vec::new();
-        for codepoint in codepoints {
-            result.push(u32::from_str_radix(codepoint, 16).map_err(serde::de::Error::custom)?);
-        }
-        Ok(result)
-    }
-}
-
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Layer {
@@ -586,77 +483,12 @@ pub struct Transform {
     pub t_y: f32,
 }
 
-impl<'de> Deserialize<'de> for Transform {
-    fn deserialize<D>(deserializer: D) -> Result<Transform, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(CurlyBraceVisitor::<6, Transform>::default())
-    }
-}
-impl Serialize for Transform {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serialize_commify(self, serializer)
-    }
-}
-
-impl CurlyBraceReceiver<f32, 6> for Transform {
-    fn new(values: [f32; 6]) -> Self {
-        Transform {
-            m11: values[0],
-            m12: values[1],
-            m21: values[2],
-            m22: values[3],
-            t_x: values[4],
-            t_y: values[5],
-        }
-    }
-    fn as_parts(&self) -> [f32; 6] {
-        [self.m11, self.m12, self.m21, self.m22, self.t_x, self.t_y]
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct CropRect {
-    top: i32,
-    left: i32,
-    bottom: i32,
-    right: i32,
-}
-impl<'de> Deserialize<'de> for CropRect {
-    fn deserialize<D>(deserializer: D) -> Result<CropRect, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(CropRectVisitor::<CropRect>::default())
-    }
-}
-
-impl CropRectReceiver for CropRect {
-    fn new(top: i32, left: i32, bottom: i32, right: i32) -> Self {
-        CropRect {
-            top,
-            left,
-            bottom,
-            right,
-        }
-    }
-}
-impl Serialize for CropRect {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq = serializer.serialize_seq(None)?;
-        seq.serialize_element(&format!(
-            "{{{{{},{}}},{{{}, {}}}}}",
-            self.top, self.left, self.bottom, self.right
-        ))?;
-        seq.end()
-    }
+    pub top: i32,
+    pub left: i32,
+    pub bottom: i32,
+    pub right: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -755,74 +587,4 @@ pub struct Node {
     pub x: f32,
     pub y: f32,
     pub node_type: NodeType,
-}
-
-impl Serialize for Node {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        // string X Y (full node type) (SMOOTH)?
-        let node_type = match self.node_type {
-            NodeType::Line => "LINE",
-            NodeType::Curve => "CURVE",
-            NodeType::QCurve => "QCURVE",
-            NodeType::OffCurve => "OFFCURVE",
-            NodeType::LineSmooth => "LINE SMOOTH",
-            NodeType::CurveSmooth => "CURVE SMOOTH",
-            NodeType::QCurveSmooth => "QCURVE SMOOTH",
-        };
-        let node_str = format!("{} {} {}", self.x, self.y, node_type);
-        let mut seq = serializer.serialize_seq(None)?;
-        seq.serialize_element(&node_str)?;
-        seq.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Node {
-    fn deserialize<D>(deserializer: D) -> Result<Node, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(NodeVisitor)
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-struct NodeVisitor;
-
-impl Visitor<'_> for NodeVisitor {
-    type Value = Node;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a string with node data")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Node, E>
-    where
-        E: serde::de::Error,
-    {
-        let parts: Vec<&str> = value.split_whitespace().collect();
-        if parts.len() < 3 {
-            return Err(E::custom("not enough parts"));
-        }
-        let x = parts[0]
-            .parse::<f32>()
-            .map_err(|_| E::custom("could not parse x"))?;
-        let y = parts[1]
-            .parse::<f32>()
-            .map_err(|_| E::custom("could not parse y"))?;
-        let smooth = parts.len() > 3 && parts[3] == "SMOOTH";
-        let node_type = match (parts[2], smooth) {
-            ("LINE", false) => NodeType::Line,
-            ("CURVE", false) => NodeType::Curve,
-            ("QCURVE", false) => NodeType::QCurve,
-            ("OFFCURVE", false) => NodeType::OffCurve,
-            ("LINE", true) => NodeType::LineSmooth,
-            ("CURVE", true) => NodeType::CurveSmooth,
-            ("QCURVE", true) => NodeType::QCurveSmooth,
-            _ => return Err(E::custom("unknown node type")),
-        };
-        Ok(Node { x, y, node_type })
-    }
 }

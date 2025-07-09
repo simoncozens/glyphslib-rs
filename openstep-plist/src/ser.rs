@@ -18,7 +18,7 @@ macro_rules! forward_to {
     };
 }
 
-const FLOAT_PRECISION: i32 = 5;
+const FLOAT_PRECISION: i32 = 4;
 
 pub fn to_string<T>(value: &T) -> Result<String>
 where
@@ -463,7 +463,7 @@ tag = wght;
 };"#
         .replace("\n", "");
         let plist: Plist = Plist::parse(&plist_str).unwrap();
-        let s = to_string(&plist).unwrap().replace("\n", "");
+        let s = to_string(&plist).unwrap();
         assert_eq!(s, plist_str);
     }
 

@@ -1,13 +1,17 @@
 pub mod common;
 pub mod glyphs2;
 pub mod glyphs3;
+mod serde;
 mod upgrade;
-use std::{fs, path};
+mod utils;
+use std::{ffi::OsStr, fs, path};
 
 use glyphs2::Glyphs2;
 use glyphs3::Glyphs3;
-use openstep_plist::de::Deserializer;
 pub use openstep_plist::Plist;
+use openstep_plist::{de::Deserializer, Dictionary};
+
+use utils::user_name_to_file_name;
 
 fn is_glyphs3(plist: &Plist) -> bool {
     plist
@@ -23,11 +27,18 @@ pub enum Font {
 }
 impl Font {
     pub fn load(glyphs_file: &path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        if glyphs_file.extension() == Some(OsStr::new("glyphspackage")) {
+            return Font::load_package(glyphs_file);
+        }
         let raw_content = fs::read_to_string(glyphs_file)?;
         Self::load_str(&raw_content)
     }
     pub fn load_str(raw_content: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let plist = Plist::parse(raw_content).unwrap();
+        let plist = Plist::parse(raw_content)?;
+        Font::from_plist(plist)
+    }
+
+    fn from_plist(plist: Plist) -> Result<Self, Box<dyn std::error::Error>> {
         let deserializer = &mut Deserializer::from_plist(&plist);
         if is_glyphs3(&plist) {
             let glyphs3: Glyphs3 = serde_path_to_error::deserialize(deserializer)?;
@@ -68,8 +79,98 @@ impl Font {
     }
 
     pub fn save(&self, path: &path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        if path.extension() == Some(OsStr::new("glyphspackage")) {
+            return self.save_package(path);
+        }
+
         fs::write(path, self.to_string()?)?;
         Ok(())
+    }
+
+    fn load_package(glyphs_file: &path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let fontinfo_file = glyphs_file.join("fontinfo.plist");
+        let raw_content = fs::read_to_string(fontinfo_file)?;
+        let mut toplevel = Plist::parse(&raw_content)?.expect_dict()?;
+        let ui_state_file = glyphs_file.join("UIState.plist");
+        if let Ok(ui_state) = fs::read_to_string(ui_state_file) {
+            let ui_state_plist = Plist::parse(&ui_state)?;
+            // UIState.plist contains a dictionary with a key "displayStrings".
+            // However. the Glyphs3 non-package format has this key as "DisplayStrings" (with a capital 'D').
+            // So we can't just merge dictionaries, we have to rewrite the key.
+            toplevel.insert(
+                "DisplayStrings".into(),
+                ui_state_plist
+                    .expect_dict()?
+                    .get("displayStrings")
+                    .cloned()
+                    .unwrap_or(Plist::Array(vec![])),
+            );
+        }
+        let glyph_order_file = glyphs_file.join("order.plist");
+        let glyph_order_plist = fs::read_to_string(glyph_order_file)?;
+        let glyph_order = Plist::parse(&glyph_order_plist).and_then(|p| p.expect_array())?;
+        let mut glyphs = vec![];
+        for glyph in glyph_order.iter() {
+            if let Some(name) = glyph.as_str() {
+                let glyph_file = glyphs_file
+                    .join("glyphs")
+                    .join(format!("{}.glyph", user_name_to_file_name(name)));
+                if let Ok(glyph_content) = fs::read_to_string(glyph_file) {
+                    let glyph_plist = Plist::parse(&glyph_content)?;
+                    glyphs.push(glyph_plist);
+                }
+            }
+        }
+        toplevel.insert("glyphs".into(), Plist::Array(glyphs));
+        Self::from_plist(Plist::Dictionary(toplevel))
+    }
+
+    fn save_package(&self, glyphs_file: &path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        if let Font::Glyphs3(glyphs3) = self {
+            let glyphs_dir = glyphs_file.join("glyphs");
+            fs::create_dir_all(&glyphs_dir)?;
+            let mut glyph_order: Vec<Plist> = vec![];
+            for glyph in &glyphs3.glyphs {
+                glyph_order.push(Plist::String(glyph.name.clone()));
+                let name = user_name_to_file_name(&glyph.name);
+                let glyph_file = glyphs_dir.join(format!("{name}.glyph"));
+                fs::write(glyph_file, openstep_plist::ser::to_string(glyph)?)?;
+            }
+            let glyphorder_file = glyphs_file.join("order.plist");
+            fs::write(
+                glyphorder_file,
+                openstep_plist::ser::to_string(&glyph_order)?.trim(),
+            )?;
+            if !glyphs3.display_strings.is_empty() {
+                let mut dict = Dictionary::new();
+                dict.insert(
+                    "displayStrings".into(), // In a UIState.plist this has a lowercase 'd'
+                    Plist::Array(
+                        glyphs3
+                            .display_strings
+                            .iter()
+                            .map(|s| Plist::String(s.to_string()))
+                            .collect(),
+                    ),
+                );
+                let ui_state = Plist::Dictionary(dict);
+                fs::write(
+                    glyphs_file.join("UIState.plist"),
+                    openstep_plist::ser::to_string(&ui_state)?,
+                )?;
+            }
+            // Drop the glyphs and UI state now we have saved them.
+            let mut toplevel = glyphs3.clone();
+            toplevel.glyphs.clear();
+            toplevel.display_strings.clear();
+            fs::write(
+                glyphs_file.join("fontinfo.plist"),
+                openstep_plist::ser::to_string(&toplevel)?,
+            )?;
+            Ok(())
+        } else {
+            Err("Saving Glyphs2 as package is not supported".into())
+        }
     }
 }
 

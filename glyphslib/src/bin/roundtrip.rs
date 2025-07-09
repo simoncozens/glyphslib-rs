@@ -9,9 +9,9 @@ fn main() {
     let font = glyphslib::Font::load(Path::new(&input)).expect("Failed to read font file");
     let elapsed = start.elapsed();
     let start = std::time::Instant::now();
-    println!("Loaded font in: {:?}", elapsed);
+    println!("Loaded font in: {elapsed:?}");
     font.save(Path::new(&output))
         .expect("Failed to save font file");
     let elapsed = start.elapsed();
-    println!("Saved font in: {:?}", elapsed);
+    println!("Saved font in: {elapsed:?}");
 }

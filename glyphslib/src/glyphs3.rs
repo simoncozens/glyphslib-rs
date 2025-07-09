@@ -1,13 +1,14 @@
-use std::{collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
 
 use openstep_plist::{Dictionary, Plist};
-use serde::{de::Visitor, ser::SerializeTuple, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, OneOrMany};
 
 use crate::common::{
     bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
     Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType, Version,
 };
+use crate::serde::{deserialize_export_type, int_to_bool, SerializeAsTuple};
 
 pub(crate) fn version_two() -> i32 {
     2
@@ -139,32 +140,6 @@ pub enum MetricType {
     Baseline,
     #[serde(rename = "italic angle")]
     ItalicAngle,
-}
-
-impl<'de> Deserialize<'de> for MetricType {
-    fn deserialize<D>(de: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let variant = String::deserialize(de)?;
-        Ok(match variant.as_str() {
-            "ascender" => MetricType::Ascender,
-            "cap height" => MetricType::CapHeight,
-            "slant height" => MetricType::SlantHeight,
-            "x-height" => MetricType::XHeight,
-            "midHeight" => MetricType::MidHeight,
-            "topHeight" => MetricType::TopHeight,
-            "bodyHeight" => MetricType::BodyHeight,
-            "descender" => MetricType::Descender,
-            "baseline" => MetricType::Baseline,
-            "italic angle" => MetricType::ItalicAngle,
-            _ => {
-                return Err(serde::de::Error::custom(format!(
-                    "unknown metric type: {variant}",
-                )))
-            }
-        })
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -344,7 +319,10 @@ pub struct Glyph {
     pub subcategory: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
-    #[serde_as(as = "OneOrMany<_>")]
+    #[serde_as(
+        deserialize_as = "OneOrMany<_>",
+        serialize_as = "SerializeAsTuple<u32>"
+    )]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unicode: Vec<u32>,
     /// User data
@@ -361,52 +339,46 @@ pub struct SmartComponentSetting {
     name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+// We manually serialize this because background layers serialize differently,
+// and I don't want to have a separate BackgroundLayer struct.
+#[derive(Deserialize, Debug, Clone)]
 pub struct Layer {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub anchors: Vec<Anchor>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub annotations: Vec<Dictionary>,
     /// ID of the master the layer is linked to
     ///
     /// Not present if it equals layerID, i.e. if the layer is in use as master.
-    #[serde(
-        rename = "associatedMasterId",
-        default,
-        skip_serializing_if = "is_default"
-    )]
+    #[serde(rename = "associatedMasterId", default)]
     pub associated_master_id: Option<String>,
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub attr: Dictionary,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub background: Option<Box<Layer>>,
-    #[serde(
-        rename = "backgroundImage",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "backgroundImage", default)]
     pub background_image: Option<BackgroundImage>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub color: Option<Color>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub guides: Vec<Guide>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub hints: Vec<Dictionary>, // This thing's an absolute minefield
     /// The unique id of the layer
-    #[serde(rename = "layerId", default, skip_serializing_if = "String::is_empty")]
+    #[serde(rename = "layerId", default)]
     // Not required for background layers
     pub layer_id: String,
     /// Bottom metric key
-    #[serde(rename = "metricBottom", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "metricBottom", default)]
     pub metric_bottom: Option<String>,
     /// Left metric key
-    #[serde(rename = "metricLeft", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "metricLeft", default)]
     pub metric_left: Option<String>,
     /// Right metric key
-    #[serde(rename = "metricRight", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "metricRight", default)]
     pub metric_right: Option<String>,
     /// Top metric key
-    #[serde(rename = "metricTop", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "metricTop", default)]
     pub metric_top: Option<String>,
     /// Vertical width metric key
     #[serde(
@@ -416,40 +388,38 @@ pub struct Layer {
     )]
     pub metric_vert_width: Option<String>,
     /// Horizontal width metric key
-    #[serde(rename = "metricWidth", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "metricWidth", default)]
     pub metric_width: Option<String>,
     /// The name of the layer.
     ///
     /// Only stored for non-master layers (this is changed in 2.3, before the master names where stored)
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub name: Option<String>,
     /// Smart component part selection
-    #[serde(default, skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub part_selection: BTreeMap<String, u8>,
     /// Shapes
     ///
     /// Can be paths or components
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub shapes: Vec<Shape>,
     /// User data
-    #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
+    #[serde(rename = "userData", default)]
     pub user_data: Dictionary,
     /// Offset from default (ascender)
-    #[serde(
-        rename = "vertOrigin",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "vertOrigin", default)]
     pub vert_origin: Option<f32>,
     /// Vertical width
     ///
     /// Only stored if other than the default (ascender+descender)
-    #[serde(rename = "vertWidth", default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "vertWidth", default)]
     pub vert_width: Option<f32>,
     /// The visibility setting in the layer panel (the eye symbol).
-    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    #[serde(default = "bool_true")]
     pub visible: bool,
     /// Layer width
+    ///
+    /// Should be skipped if it's zero and we are a background layer.
     #[serde(default)]
     pub width: f32,
 }
@@ -509,76 +479,12 @@ pub struct Path {
     pub nodes: Vec<Node>,
 }
 
-fn int_to_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s: i8 = Deserialize::deserialize(deserializer)?;
-    Ok(s == 1)
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     pub x: f32,
     pub y: f32,
     pub node_type: NodeType,
     pub user_data: Option<Dictionary>,
-}
-
-impl Serialize for Node {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq = serializer.serialize_tuple(3)?;
-        seq.serialize_element(&self.x)?;
-        seq.serialize_element(&self.y)?;
-        seq.serialize_element(&self.node_type)?;
-        if let Some(user_data) = &self.user_data {
-            seq.serialize_element(user_data)?;
-        }
-        seq.end()
-    }
-}
-
-struct SimpleNodeVisitor;
-impl<'de> Visitor<'de> for SimpleNodeVisitor {
-    type Value = Node;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a tuple of 3 or 4 elements")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: serde::de::SeqAccess<'de>,
-    {
-        let x = seq
-            .next_element()?
-            .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-        let y = seq
-            .next_element()?
-            .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-        let node_type = seq
-            .next_element()?
-            .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-        let user_data = seq.next_element()?;
-        Ok(Node {
-            x,
-            y,
-            node_type,
-            user_data,
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for Node {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(SimpleNodeVisitor)
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -684,29 +590,12 @@ pub struct Instance {
     pub width_class: Option<Plist>,
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
 pub enum ExportType {
     #[default]
     Static,
     #[serde(rename = "variable")]
     Variable,
-}
-
-fn deserialize_export_type<'de, D>(deserializer: D) -> Result<ExportType, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let variant = String::deserialize(deserializer)?;
-    Ok(match variant.as_str() {
-        "static" => ExportType::Static,
-        "variable" => ExportType::Variable,
-        _ => {
-            return Err(serde::de::Error::custom(format!(
-                "unknown export type: {variant}"
-            )))
-        }
-    })
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
