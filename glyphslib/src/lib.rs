@@ -2,9 +2,12 @@ pub mod common;
 pub mod glyphs2;
 pub mod glyphs3;
 mod serde;
+mod traits;
 mod upgrade;
 mod utils;
 use std::{ffi::OsStr, fs, path};
+
+pub use traits::GlyphsFile;
 
 use glyphs2::Glyphs2;
 use glyphs3::Glyphs3;
@@ -60,6 +63,28 @@ impl Font {
             _ => None,
         }
     }
+
+    /// Returns a reference to font, ignoring the difference between Glyphs2 and Glyphs3.
+    ///
+    /// Sometimes you don't need to know which version of Glyphs you are dealing with,
+    /// you just want to access the common functionality. The [GlyphsFile] trait
+    /// provides an interface to methods which are common to both Glyphs2 and Glyphs3.
+    pub fn font(&self) -> &dyn GlyphsFile {
+        match self {
+            Font::Glyphs2(glyphs2) => glyphs2,
+            Font::Glyphs3(glyphs3) => glyphs3,
+        }
+    }
+
+    /// Returns a mutable reference to font, ignoring the difference between Glyphs2 and Glyphs3.
+    pub fn font_mut(&mut self) -> &mut dyn GlyphsFile {
+        match self {
+            Font::Glyphs2(glyphs2) => glyphs2,
+            Font::Glyphs3(glyphs3) => glyphs3,
+        }
+    }
+
+    /// Returns a Glyphs3 version of the font.
     pub fn upgrade(&self) -> Self {
         match self {
             Font::Glyphs2(glyphs2) => Font::Glyphs3(Into::into(glyphs2.clone())),
@@ -67,10 +92,12 @@ impl Font {
         }
     }
 
+    /// Turns a Glyphs2 font into a Glyphs3 font in place.
     pub fn upgrade_in_place(&mut self) {
         *self = self.upgrade();
     }
 
+    /// Serializes the font to a a Plist in string format.
     pub fn to_string(&self) -> Result<String, openstep_plist::error::Error> {
         match self {
             Font::Glyphs2(glyphs2) => openstep_plist::ser::to_string(glyphs2),
@@ -78,6 +105,7 @@ impl Font {
         }
     }
 
+    /// Saves the font to a file.
     pub fn save(&self, path: &path::Path) -> Result<(), Box<dyn std::error::Error>> {
         if path.extension() == Some(OsStr::new("glyphspackage")) {
             return self.save_package(path);
