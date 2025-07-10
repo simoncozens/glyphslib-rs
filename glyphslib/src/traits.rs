@@ -1,3 +1,4 @@
+use crate::common::Color;
 use crate::common::FeatureClass;
 use crate::glyphs2;
 use crate::glyphs3;
@@ -30,6 +31,12 @@ macro_rules! impl_glyphs_structure {
 
     (declare accessor $field:ident ($documentation:tt)) => {};
     (declare accessor $field:ident ($documentation:tt) get $type:ty; $($more_accessors:tt)*) => {
+            #[doc = "Returns "]
+            #[doc = $documentation]
+            fn $field(&self) -> $type;
+            impl_glyphs_structure!(declare accessor $field ($documentation) $($more_accessors)*);
+    };
+    (declare accessor $field:ident ($documentation:tt) get_ref $type:ty; $($more_accessors:tt)*) => {
             #[doc = "Returns "]
             #[doc = $documentation]
             fn $field(&self) -> $type;
@@ -78,6 +85,15 @@ macro_rules! impl_glyphs_structure {
         }
         impl_glyphs_structure!(implement accessor $field ($documentation) $($more_accessors)*);
     };
+    (implement accessor $field:ident ($documentation:tt) get_ref $type:ty; $($more_accessors:tt)*) => {
+        #[doc = "Returns "]
+        #[doc = $documentation]
+        fn $field(&self) -> $type {
+            self.$field.as_deref()
+        }
+        impl_glyphs_structure!(implement accessor $field ($documentation) $($more_accessors)*);
+    };
+
     (implement accessor $field:ident ($documentation:tt) get_dyn $type:ty; $($more_accessors:tt)*) => {
         fn $field(&self) -> Vec<Box<$type>> {
             self.$field.iter().map(|m| Box::new(m as $type)).collect::<Vec<_>>()
@@ -167,6 +183,10 @@ impl_glyphs_structure!(trait GlyphsFile for Glyphs2, Glyphs3 {
     };
 });
 impl_glyphs_structure!(trait GlyphsGlyph for glyphs2::Glyph, glyphs3::Glyph {
+    kern_bottom ("the bottom kerning group of the glyph") {
+        get_ref Option<&str>;
+        set Option<String>;
+    };
     name ("the name of the glyph") {
         get &str;
         set String;
@@ -175,5 +195,13 @@ impl_glyphs_structure!(trait GlyphsGlyph for glyphs2::Glyph, glyphs3::Glyph {
         get &[u32];
         get_mut &mut Vec<u32>;
         set Vec<u32>;
+    };
+    category ("the category of the glyph") {
+        get_ref Option<&str>;
+        set Option<String>;
+    };
+    color ("the color of the glyph") {
+        get &Option<Color>;
+        set Option<Color>;
     };
 });
