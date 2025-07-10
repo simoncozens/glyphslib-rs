@@ -37,6 +37,7 @@ pub struct FeaturePrefix {
     /// A string containing feature code.
     code: String,
     /// The name of the prefix
+    #[serde(alias = "tag")] // Of course some random Glyphs version did this
     name: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
