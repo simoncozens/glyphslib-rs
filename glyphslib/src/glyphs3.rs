@@ -248,6 +248,10 @@ pub struct MetricValue {
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Glyph {
+    ///  Bottom kerning group
+    #[serde(rename = "kernBottom", skip_serializing_if = "Option::is_none")]
+    pub kern_bottom: Option<String>,
+
     /// The 'case' of the glyph when manually set.
     ///
     /// Possible values: "noCase", "upper", "lower", "smallCaps", "other".
@@ -269,9 +273,6 @@ pub struct Glyph {
     /// The glyph name
     #[serde(rename = "glyphname")]
     pub name: String,
-    ///  Bottom kerning group
-    #[serde(rename = "kernBottom", skip_serializing_if = "Option::is_none")]
-    pub kern_bottom: Option<String>,
     /// Left kerning group
     #[serde(rename = "kernLeft", skip_serializing_if = "Option::is_none")]
     pub kern_left: Option<String>,
@@ -504,7 +505,11 @@ pub struct Component {
     pub angle: f32,
     #[serde(default, skip_serializing_if = "is_default")]
     pub attr: Dictionary,
-    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        deserialize_with = "int_to_bool"
+    )]
     pub locked: bool,
     /// If left, center or right aligned
     #[serde(default, skip_serializing_if = "is_default")]
@@ -609,6 +614,10 @@ pub enum Property {
         key: LocalizedPropertyKey,
         values: Vec<LocalizedValue>,
     },
+    // For properties that are not recognized. For example, there's a version of
+    // glyphs that puts the `designer` property in the `properties` array with a
+    // localized value.
+    Junk(Plist),
 }
 
 impl Property {
@@ -646,10 +655,16 @@ pub enum LocalizedPropertyKey {
     SampleTexts,
     #[serde(rename = "compatibleFullNames")]
     CompatibleFullNames,
+    #[serde(rename = "styleNames")]
+    StyleNames,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum SingularPropertyKey {
+    #[serde(rename = "designer")]
+    Designer,
+    #[serde(rename = "manufacturer")]
+    Manufacturer,
     #[serde(rename = "designerURL")]
     DesignerUrl,
     #[serde(rename = "manufacturerURL")]

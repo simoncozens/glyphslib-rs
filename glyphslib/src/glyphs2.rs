@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::serde::{
-    deserialize_comma_hexstring, deserialize_commify, serialize_comma_hexstring, serialize_commify,
+    anything_to_bool, deserialize_comma_hexstring, deserialize_commify, serialize_comma_hexstring,
+    serialize_commify,
 };
 
 use openstep_plist::Dictionary;
@@ -333,6 +334,17 @@ pub struct Instance {
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Glyph {
+    /// Bottom kerning group
+    #[serde(rename = "bottomKerningGroup", skip_serializing_if = "is_default")]
+    pub kern_bottom: Option<String>,
+    /// The bottom metrics key of the glyph.
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "bottomMetricsKey"
+    )]
+    pub metric_bottom: Option<String>,
+
     /// The glyph name
     #[serde(rename = "glyphname")]
     pub name: String,
@@ -356,7 +368,7 @@ pub struct Glyph {
     #[serde(rename = "rightKerningGroup", skip_serializing_if = "is_default")]
     pub kern_right: Option<String>,
     /// Top kerning group
-    #[serde(rename = "kernTop", skip_serializing_if = "is_default")]
+    #[serde(rename = "topKerningGroup", skip_serializing_if = "is_default")]
     pub kern_top: Option<String>,
     /// Format 2014-01-29 14:14:38 +0000
     #[serde(rename = "lastChange", skip_serializing_if = "is_default")]
@@ -461,13 +473,18 @@ pub struct Anchor {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct BackgroundImage {
     /// Portion of the image to show in pixels, format: {{t,l},{b,r}}
+    #[serde(default)]
     pub crop: CropRect,
     /// The file path to the image.
     ///
     /// It is stored relative if close enough. Otherwise the full path.
     #[serde(rename = "imagePath", default)]
     pub image_path: String,
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(
+        default,
+        skip_serializing_if = "is_false",
+        deserialize_with = "anything_to_bool"
+    )]
     pub locked: bool,
     pub transform: Transform,
 }
@@ -571,6 +588,7 @@ pub struct Hint {
     pub scale: (f32, f32),
     #[serde(default, skip_serializing_if = "is_default")]
     pub stem: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
     pub options: i8,
 }
 

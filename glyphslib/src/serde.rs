@@ -259,6 +259,36 @@ where
     Ok(s == 1)
 }
 
+pub(crate) fn anything_to_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    deserializer.deserialize_any(AnythingToBoolVisitor)
+}
+
+struct AnythingToBoolVisitor;
+
+impl<'de> Visitor<'de> for AnythingToBoolVisitor {
+    type Value = bool;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("anything")
+    }
+
+    fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(true)
+    }
+    fn visit_i64<E>(self, _v: i64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(true)
+    }
+}
+
 pub(crate) struct SerializeAsTuple<U> {
     _marker: std::marker::PhantomData<U>,
 }
