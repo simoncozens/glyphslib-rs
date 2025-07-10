@@ -15,6 +15,8 @@ pub enum Error {
     BadData,
     #[error("Unknown escape code")]
     UnknownEscape,
+    #[error("Invalid unicode escape sequence: '{0}'")]
+    InvalidUnicodeEscape(String),
     #[error("Expected string, found '{token_name}")]
     NotAString { token_name: &'static str },
     #[error("Missing '='")]
