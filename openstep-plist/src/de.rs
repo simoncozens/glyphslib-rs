@@ -126,11 +126,20 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         }
     }
 
-    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        match self.element() {
+            Plist::Data(data) => {
+                // Convert the data to a byte buffer
+                visitor.visit_byte_buf(data.clone())
+            }
+            _ => Err(Error::UnexpectedDataType {
+                expected: "data",
+                found: self.element().name(),
+            }),
+        }
     }
 
     fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
