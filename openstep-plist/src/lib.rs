@@ -24,6 +24,7 @@ pub enum Plist {
     String(String),
     Integer(i64),
     Float(f64),
+    #[serde(with = "serde_bytes")]
     Data(Vec<u8>),
 }
 
@@ -623,7 +624,21 @@ mod tests {
             "#;
         let plist = Plist::parse(contents).unwrap();
         let data = plist.get("mydata").unwrap().clone().expect_data().unwrap();
-        assert_eq!(data, [0xde, 0xad, 0xbe, 0xef])
+        assert_eq!(data, [0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn test_serde_binary_data() {
+        // let contents = r#"
+        // {
+        //     de.kutilek.scrawl.data = <89504e470d0a1a0a>;
+        // }
+        // "#;
+        // let plist = Plist::parse(contents).unwrap();
+        // println!("{:?}", plist);
+        let plist = Plist::Data(vec![0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        let mut deserializer = crate::de::Deserializer::from_plist(&plist);
+        let plist: Plist = Plist::deserialize(&mut deserializer).unwrap();
     }
 
     #[test]
