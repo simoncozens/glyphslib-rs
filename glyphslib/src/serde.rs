@@ -391,30 +391,31 @@ impl<'de> Visitor<'de> for CommaHexStringVisitor {
 }
 
 // Well, this is going to get interesting.
-pub(crate) trait CurlyBraceReceiver<T, const N: usize> {
-    fn new(parts: [T; N]) -> Self;
-    fn as_parts(&self) -> [T; N];
+pub(crate) trait CurlyBraceReceiver<T> {
+    fn try_from_parts(parts: impl Iterator<Item = T>) -> Result<Self, String>
+    where
+        Self: Sized;
 }
 
-impl CurlyBraceReceiver<f32, 2> for (f32, f32) {
-    fn new(parts: [f32; 2]) -> Self {
-        (parts[0], parts[1])
-    }
-    fn as_parts(&self) -> [f32; 2] {
-        [self.0, self.1]
+impl CurlyBraceReceiver<f32> for (f32, f32) {
+    fn try_from_parts(parts: impl Iterator<Item = f32>) -> Result<Self, String> {
+        let mut iter = parts.into_iter();
+        let first = iter.next().ok_or_else(|| "Expected 2 parts".to_string())?;
+        let second = iter.next().ok_or_else(|| "Expected 2 parts".to_string())?;
+        Ok((first, second))
     }
 }
 
-pub(crate) struct CurlyBraceVisitor<const SIZE: usize, T>
+pub(crate) struct CurlyBraceVisitor<T>
 where
-    T: CurlyBraceReceiver<f32, SIZE>, // Maybe there's an argument for being EVEN MORE GENERIC but I think we're quite generic enough
+    T: CurlyBraceReceiver<f32>, // Maybe there's an argument for being EVEN MORE GENERIC but I think we're quite generic enough
 {
     pub(crate) _marker: std::marker::PhantomData<T>,
 }
 
-impl<const SIZE: usize, T> Default for CurlyBraceVisitor<SIZE, T>
+impl<T> Default for CurlyBraceVisitor<T>
 where
-    T: CurlyBraceReceiver<f32, SIZE>,
+    T: CurlyBraceReceiver<f32>,
 {
     fn default() -> Self {
         CurlyBraceVisitor {
@@ -423,9 +424,9 @@ where
     }
 }
 
-impl<const SIZE: usize, T> Visitor<'_> for CurlyBraceVisitor<SIZE, T>
+impl<T> Visitor<'_> for CurlyBraceVisitor<T>
 where
-    T: CurlyBraceReceiver<f32, SIZE>,
+    T: CurlyBraceReceiver<f32>,
 {
     type Value = T;
 
@@ -438,52 +439,73 @@ where
         E: serde::de::Error,
     {
         let parts = value.trim_matches(|c| c == '{' || c == '}').split(',');
-        let part_len = parts.clone().count();
-        if part_len != SIZE {
-            return Err(E::custom(format!(
-                "wrong number of parts: expected {SIZE}, found {part_len}"
-            )));
-        }
-        Ok(T::new(
-            parts
-                .map(|s| {
-                    s.trim()
-                        .parse::<f32>()
-                        .map_err(|e| E::custom(format!("failed to parse '{s}' as f32: {e}")))
-                })
-                .collect::<Result<Vec<_>, _>>()?
-                .try_into()
-                .map_err(|e: Vec<f32>| {
-                    E::custom(format!("failed to parse '{value}' as f32: got {e:?}"))
-                })?,
-        ))
+        let parts_vec: Vec<f32> = parts
+            .map(|s| {
+                s.trim()
+                    .parse::<f32>()
+                    .map_err(|e| E::custom(format!("failed to parse '{s}' as f32: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        T::try_from_parts(parts_vec.into_iter())
+            .map_err(|e| E::custom(format!("failed to parse parts: {e}")))
+    }
+
+    // It's usually a string! But just occasionally, we get a raw number
+    // (for example in instanceInterpolations, if there is only one axis)
+    fn visit_f64<E>(self, value: f64) -> Result<T, E>
+    where
+        E: serde::de::Error,
+    {
+        T::try_from_parts(std::iter::once(value as f32)).map_err(|e| E::custom(e))
+    }
+    fn visit_i64<E>(self, value: i64) -> Result<T, E>
+    where
+        E: serde::de::Error,
+    {
+        T::try_from_parts(std::iter::once(value as f32)).map_err(|e| E::custom(e))
     }
 }
 
-pub(crate) fn serialize_commify<S, T, const SIZE: usize>(
-    value: &T,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+// We need our own IntoIterator so we can implement it on various builtins
+pub(crate) trait MyIntoIterator<'a> {
+    type Item;
+    type IntoIter: Iterator<Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter;
+}
+impl MyIntoIterator<'_> for &(f32, f32) {
+    type Item = f32;
+    type IntoIter = std::array::IntoIter<f32, 2>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.0, self.1].into_iter()
+    }
+}
+impl<'a> MyIntoIterator<'a> for &'a Vec<f32> {
+    type Item = f32;
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, f32>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::IntoIterator::into_iter(self).copied()
+    }
+}
+
+pub(crate) fn serialize_commify<'a, S, T>(value: &'a T, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
-    T: CurlyBraceReceiver<f32, SIZE>,
+    T: CurlyBraceReceiver<f32> + 'a,
+    &'a T: MyIntoIterator<'a, Item = f32>,
 {
-    let middle: String = value
-        .as_parts()
-        .into_iter()
-        .map(|x| x.to_string())
-        .join(", ");
+    let middle: String = value.into_iter().map(|x| x.to_string()).join(", ");
     serializer.serialize_str(&format!("{{{middle}}}"))
 }
 
-pub(crate) fn deserialize_commify<'de, D, T, const SIZE: usize>(
-    deserializer: D,
-) -> Result<T, D::Error>
+pub(crate) fn deserialize_commify<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
-    T: CurlyBraceReceiver<f32, SIZE>,
+    T: CurlyBraceReceiver<f32>,
 {
-    deserializer.deserialize_str(CurlyBraceVisitor::<SIZE, T>::default())
+    deserializer.deserialize_any(CurlyBraceVisitor::<T>::default())
 }
 
 // So complicated our nice generic solution above doesn't work
@@ -554,7 +576,7 @@ impl<'de> Deserialize<'de> for glyphs2::Transform {
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_str(CurlyBraceVisitor::<6, glyphs2::Transform>::default())
+        deserializer.deserialize_str(CurlyBraceVisitor::<glyphs2::Transform>::default())
     }
 }
 impl Serialize for glyphs2::Transform {
@@ -565,20 +587,41 @@ impl Serialize for glyphs2::Transform {
         serialize_commify(self, serializer)
     }
 }
+impl MyIntoIterator<'_> for &glyphs2::Transform {
+    type Item = f32;
+    type IntoIter = std::array::IntoIter<f32, 6>;
 
-impl CurlyBraceReceiver<f32, 6> for glyphs2::Transform {
-    fn new(values: [f32; 6]) -> Self {
-        glyphs2::Transform {
-            m11: values[0],
-            m12: values[1],
-            m21: values[2],
-            m22: values[3],
-            t_x: values[4],
-            t_y: values[5],
-        }
+    fn into_iter(self) -> Self::IntoIter {
+        [self.m11, self.m12, self.m21, self.m22, self.t_x, self.t_y].into_iter()
     }
-    fn as_parts(&self) -> [f32; 6] {
-        [self.m11, self.m12, self.m21, self.m22, self.t_x, self.t_y]
+}
+
+impl CurlyBraceReceiver<f32> for glyphs2::Transform {
+    fn try_from_parts(parts: impl Iterator<Item = f32>) -> Result<Self, String> {
+        let parts: Vec<f32> = parts.into_iter().collect();
+        if parts.len() != 6 {
+            return Err(format!(
+                "Expected exactly 6 parts for glyphs2::Transform, got {}",
+                parts.len()
+            ));
+        }
+        Ok(glyphs2::Transform {
+            m11: parts[0],
+            m12: parts[1],
+            m21: parts[2],
+            m22: parts[3],
+            t_x: parts[4],
+            t_y: parts[5],
+        })
+    }
+}
+
+impl IntoIterator for &glyphs2::Transform {
+    type Item = f32;
+    type IntoIter = std::array::IntoIter<f32, 6>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.m11, self.m12, self.m21, self.m22, self.t_x, self.t_y].into_iter()
     }
 }
 
@@ -620,7 +663,7 @@ impl<'de> Deserialize<'de> for AlignmentZone {
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_str(CurlyBraceVisitor::<2, AlignmentZone>::default())
+        deserializer.deserialize_str(CurlyBraceVisitor::<AlignmentZone>::default())
     }
 }
 impl Serialize for AlignmentZone {
@@ -631,16 +674,33 @@ impl Serialize for AlignmentZone {
         serialize_commify(self, serializer)
     }
 }
+impl MyIntoIterator<'_> for &AlignmentZone {
+    type Item = f32;
+    type IntoIter = std::array::IntoIter<f32, 2>;
 
-impl CurlyBraceReceiver<f32, 2> for AlignmentZone {
-    fn new(values: [f32; 2]) -> Self {
-        AlignmentZone {
-            position: values[0],
-            overshoot: values[1],
-        }
+    fn into_iter(self) -> Self::IntoIter {
+        [self.position, self.overshoot].into_iter()
     }
-    fn as_parts(&self) -> [f32; 2] {
-        [self.position, self.overshoot]
+}
+
+impl CurlyBraceReceiver<f32> for AlignmentZone {
+    fn try_from_parts(parts: impl Iterator<Item = f32>) -> Result<Self, String> {
+        let mut iter = parts.into_iter();
+        let position = iter.next().ok_or_else(|| "Expected 2 parts".to_string())?;
+        let overshoot = iter.next().ok_or_else(|| "Expected 2 parts".to_string())?;
+        Ok(AlignmentZone {
+            position,
+            overshoot,
+        })
+    }
+}
+
+impl IntoIterator for &AlignmentZone {
+    type Item = f32;
+    type IntoIter = std::array::IntoIter<f32, 2>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [self.position, self.overshoot].into_iter()
     }
 }
 
@@ -660,4 +720,10 @@ where
             )))
         }
     })
+}
+
+impl CurlyBraceReceiver<f32> for Vec<f32> {
+    fn try_from_parts(parts: impl Iterator<Item = f32>) -> Result<Self, String> {
+        Ok(parts.collect())
+    }
 }

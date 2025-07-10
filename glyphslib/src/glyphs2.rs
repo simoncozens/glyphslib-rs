@@ -1,8 +1,11 @@
 use std::collections::BTreeMap;
 
-use crate::serde::{
-    anything_to_bool, deserialize_comma_hexstring, deserialize_commify, serialize_comma_hexstring,
-    serialize_commify,
+use crate::{
+    common::InstanceFactors,
+    serde::{
+        anything_to_bool, deserialize_comma_hexstring, deserialize_commify,
+        serialize_comma_hexstring, serialize_commify,
+    },
 };
 
 use openstep_plist::Dictionary;
@@ -295,7 +298,7 @@ pub struct Instance {
         skip_serializing_if = "BTreeMap::is_empty",
         rename = "instanceInterpolations"
     )]
-    pub instance_interpolations: BTreeMap<String, f32>,
+    pub instance_interpolations: BTreeMap<String, InstanceFactors>,
     /// For style linking. Always set to 1, otherwise omit the key.
     #[serde(default, rename = "isBold", skip_serializing_if = "is_false")]
     pub is_bold: bool,
@@ -558,13 +561,8 @@ pub struct Hint {
         deserialize_with = "deserialize_commify"
     )]
     pub origin: (f32, f32),
-    #[serde(
-        default,
-        skip_serializing_if = "is_default",
-        serialize_with = "serialize_commify",
-        deserialize_with = "deserialize_commify"
-    )]
-    pub target: (f32, f32),
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub target: HintTarget,
     #[serde(
         default,
         skip_serializing_if = "is_default",
@@ -590,6 +588,22 @@ pub struct Hint {
     pub stem: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub options: i8,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum HintTarget {
+    #[serde(
+        serialize_with = "serialize_commify",
+        deserialize_with = "deserialize_commify"
+    )]
+    Position((f32, f32)),
+    Label(String),
+}
+impl Default for HintTarget {
+    fn default() -> Self {
+        HintTarget::Position((0.0, 0.0))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

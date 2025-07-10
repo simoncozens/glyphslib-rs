@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::serde::{deserialize_commify, serialize_commify};
 use openstep_plist::Plist;
 use serde::{Deserialize, Serialize};
 
@@ -147,3 +148,13 @@ pub struct Version {
     #[serde(default, rename = "versionMinor")]
     pub minor: i32,
 }
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct InstanceFactors(
+    #[serde(
+        deserialize_with = "deserialize_commify",
+        serialize_with = "serialize_commify",
+        default
+    )]
+    pub Vec<f32>,
+);

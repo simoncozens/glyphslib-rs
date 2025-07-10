@@ -6,7 +6,8 @@ use serde_with::{serde_as, OneOrMany};
 
 use crate::common::{
     bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
-    Feature, FeatureClass, FeaturePrefix, GuideAlignment, Kerning, NodeType, Version,
+    Feature, FeatureClass, FeaturePrefix, GuideAlignment, InstanceFactors, Kerning, NodeType,
+    Version,
 };
 use crate::serde::{deserialize_export_type, int_to_bool, SerializeAsTuple};
 
@@ -550,7 +551,7 @@ pub struct Instance {
         rename = "instanceInterpolations",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
-    pub instance_interpolations: BTreeMap<String, f32>,
+    pub instance_interpolations: BTreeMap<String, InstanceFactors>,
     /// For style linking. Always set to 1, otherwise omit the key.
     #[serde(default, rename = "isBold", skip_serializing_if = "is_false")]
     pub is_bold: bool,
