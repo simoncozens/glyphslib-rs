@@ -23,7 +23,7 @@ fn is_glyphs3(plist: &Plist) -> bool {
         .unwrap_or(false)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Font {
     Glyphs2(Glyphs2),
     Glyphs3(Glyphs3),

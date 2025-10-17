@@ -4,7 +4,7 @@ use crate::serde::{deserialize_commify, serialize_commify};
 use openstep_plist::Plist;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct FeatureClass {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
@@ -20,7 +20,7 @@ pub struct FeatureClass {
     pub notes: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct CustomParameter {
     /// Property name of the custom parameter
     pub name: String,
@@ -30,7 +30,7 @@ pub struct CustomParameter {
     pub disabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct FeaturePrefix {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
@@ -47,7 +47,7 @@ pub struct FeaturePrefix {
     pub notes: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Feature {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
@@ -67,7 +67,7 @@ pub struct Feature {
     tag: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct StylisticSetLabel {
     /// 'dflt' or three letter ISO language tag ("DEU")
     language: String,
@@ -75,7 +75,7 @@ pub struct StylisticSetLabel {
     value: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Color {
     ColorInt(u8),
@@ -150,7 +150,7 @@ pub struct Version {
     pub minor: i32,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct InstanceFactors(
     #[serde(
         deserialize_with = "deserialize_commify",

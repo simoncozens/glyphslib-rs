@@ -25,7 +25,7 @@ fn one_hundred() -> i32 {
     100
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Glyphs2 {
     /// The build number of the app
     #[serde(
@@ -137,7 +137,7 @@ pub struct Glyphs2 {
     pub version: Version,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Master {
     #[serde(
         rename = "alignmentZones",
@@ -236,7 +236,7 @@ pub struct AlignmentZone {
     pub overshoot: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Instance {
     /// Instance custom parameters
     #[serde(
@@ -335,7 +335,7 @@ pub struct Instance {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Glyph {
     /// Bottom kerning group
     #[serde(rename = "bottomKerningGroup", skip_serializing_if = "is_default")]
@@ -389,7 +389,7 @@ pub struct Glyph {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Layer {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub anchors: Vec<Anchor>,
@@ -461,7 +461,7 @@ pub struct Layer {
     pub visible: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Anchor {
     /// The anchor name
     pub name: String,
@@ -473,7 +473,7 @@ pub struct Anchor {
     pub position: (f32, f32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct BackgroundImage {
     /// Portion of the image to show in pixels, format: {{t,l},{b,r}}
     #[serde(default)]
@@ -511,7 +511,7 @@ pub struct CropRect {
     pub right: i32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Component {
     /// Should be indicated if connected to an anchor, especially if more than one possibility is available, e.g. in ligatures.
     #[serde(default, skip_serializing_if = "is_default")]
@@ -530,7 +530,7 @@ pub struct Component {
     pub disable_alignment: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Guide {
     #[serde(default)]
     pub alignment: GuideAlignment,
@@ -548,7 +548,7 @@ pub struct Guide {
     pub scale: (f32, f32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Hint {
     #[serde(default, skip_serializing_if = "is_default")]
     pub horizontal: bool,
@@ -606,7 +606,7 @@ impl Default for HintTarget {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Path {
     #[serde(default, skip_serializing_if = "is_false")]
     pub closed: bool,

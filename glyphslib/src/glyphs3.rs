@@ -4,18 +4,20 @@ use openstep_plist::{Dictionary, Plist};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, OneOrMany};
 
-use crate::common::{
-    bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color, CustomParameter,
-    Feature, FeatureClass, FeaturePrefix, GuideAlignment, InstanceFactors, Kerning, NodeType,
-    Version,
+use crate::{
+    common::{
+        bool_true, is_default, is_false, is_scale_unit, is_true, scale_unit, Color,
+        CustomParameter, Feature, FeatureClass, FeaturePrefix, GuideAlignment, InstanceFactors,
+        Kerning, NodeType, Version,
+    },
+    serde::{deserialize_export_type, int_to_bool, SerializeAsTuple},
 };
-use crate::serde::{deserialize_export_type, int_to_bool, SerializeAsTuple};
 
 pub(crate) fn version_two() -> i32 {
     2
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Glyphs3 {
     /// The build number of the app
     #[serde(
@@ -175,7 +177,7 @@ pub struct Settings {
     pub keyboard_increment_huge: Option<f32>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Axis {
     /// If the axis should be visible in the UI.
     #[serde(default, skip_serializing_if = "is_default")]
@@ -186,7 +188,7 @@ pub struct Axis {
     pub tag: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Master {
     /// A list of float values storing the axis coordinate for each axis
     ///
@@ -238,7 +240,7 @@ pub struct Master {
     pub visible: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct MetricValue {
     #[serde(default, skip_serializing_if = "is_default")]
     pub over: f32,
@@ -247,7 +249,7 @@ pub struct MetricValue {
 }
 
 #[serde_as]
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Glyph {
     ///  Bottom kerning group
     #[serde(rename = "kernBottom", skip_serializing_if = "Option::is_none")]
@@ -332,7 +334,7 @@ pub struct Glyph {
     pub user_data: Dictionary,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct SmartComponentSetting {
     #[serde(default, rename = "bottomValue")]
     bottom_value: i32,
@@ -343,7 +345,7 @@ pub struct SmartComponentSetting {
 
 // We manually serialize this because background layers serialize differently,
 // and I don't want to have a separate BackgroundLayer struct.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Layer {
     #[serde(default)]
     pub anchors: Vec<Anchor>,
@@ -426,14 +428,14 @@ pub struct Layer {
     pub width: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Anchor {
     pub name: String,
     #[serde(default, skip_serializing_if = "is_default")]
     pub pos: (f32, f32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BackgroundImage {
     /// The angle
     #[serde(default)]
@@ -450,7 +452,7 @@ pub struct BackgroundImage {
     #[serde(default, skip_serializing_if = "is_default")]
     pub pos: (f32, f32),
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Guide {
     #[serde(default, skip_serializing_if = "is_default")]
     pub alignment: GuideAlignment,
@@ -464,14 +466,14 @@ pub struct Guide {
     pub scale: (f32, f32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Shape {
     Component(Component),
     Path(Path),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Path {
     #[serde(default, skip_serializing_if = "is_default")]
     pub attr: Dictionary,
@@ -489,7 +491,7 @@ pub struct Node {
     pub user_data: Option<Dictionary>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Component {
     #[serde(default, skip_serializing_if = "is_default")]
     /// Controls the automatic alignment of this component.
@@ -530,7 +532,7 @@ pub struct Component {
     pub user_data: Dictionary,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Instance {
     /// A list of float values storing the axis coordinate for each axis
     ///
@@ -604,7 +606,7 @@ pub enum ExportType {
     Variable,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Property {
     SingularProperty {
@@ -686,13 +688,13 @@ pub enum SingularPropertyKey {
     UniqueID,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalizedValue {
     language: String,
     value: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Stem {
     name: String,
     #[serde(default)]
