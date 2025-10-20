@@ -9,9 +9,9 @@ pub struct FeatureClass {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// A string containing space separated glyph names.
-    code: String,
+    pub code: String,
     /// The name of the class
-    name: String,
+    pub name: String,
     /// The class will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
