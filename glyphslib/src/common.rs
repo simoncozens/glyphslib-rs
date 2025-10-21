@@ -35,10 +35,10 @@ pub struct FeaturePrefix {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// A string containing feature code.
-    code: String,
+    pub code: String,
     /// The name of the prefix
     #[serde(alias = "tag")] // Of course some random Glyphs version did this
-    name: String,
+    pub name: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
@@ -52,19 +52,19 @@ pub struct Feature {
     #[serde(default, skip_serializing_if = "is_default")]
     pub automatic: bool,
     /// A string containing feature code.
-    code: String,
+    pub code: String,
     /// The prefix will not be exported
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
     /// List of stylistic set labels
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    labels: Vec<StylisticSetLabel>,
+    pub labels: Vec<StylisticSetLabel>,
     /// Notes
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
     /// The feature tag
     #[serde(alias = "name")]
-    tag: String,
+    pub tag: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]

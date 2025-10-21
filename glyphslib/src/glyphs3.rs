@@ -108,7 +108,7 @@ pub struct Glyphs3 {
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Number {
-    name: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
