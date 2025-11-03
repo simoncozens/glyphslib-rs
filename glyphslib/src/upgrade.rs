@@ -31,6 +31,9 @@ impl From<glyphs2::Anchor> for glyphs3::Anchor {
         glyphs3::Anchor {
             pos: val.position,
             name: val.name,
+            locked: false,
+            orientation: glyphs3::Orientation::Left,
+            user_data: None,
         }
     }
 }

@@ -430,9 +430,25 @@ pub struct Layer {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Anchor {
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub locked: bool,
     pub name: String,
     #[serde(default, skip_serializing_if = "is_default")]
+    pub orientation: Orientation,
     pub pos: (f32, f32),
+    #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
+    pub user_data: Option<Dictionary>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
+pub enum Orientation {
+    #[default]
+    #[serde(rename = "left")]
+    Left,
+    #[serde(rename = "center")]
+    Center,
+    #[serde(rename = "right")]
+    Right,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
