@@ -435,6 +435,7 @@ pub struct Anchor {
     pub name: String,
     #[serde(default, skip_serializing_if = "is_default")]
     pub orientation: Orientation,
+    #[serde(default, skip_serializing_if = "is_default")]
     pub pos: (f32, f32),
     #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
     pub user_data: Option<Dictionary>,
