@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
+    common::Orientation,
     glyphs2,
     glyphs3::{self, Axis, LocalizedPropertyKey, Metric, MetricType, MetricValue, Property},
 };
@@ -32,7 +33,7 @@ impl From<glyphs2::Anchor> for glyphs3::Anchor {
             pos: val.position,
             name: val.name,
             locked: false,
-            orientation: glyphs3::Orientation::Left,
+            orientation: Orientation::Left,
             user_data: None,
         }
     }
@@ -336,7 +337,7 @@ impl glyphs2::Master {
 }
 
 impl glyphs2::Glyphs2 {
-    pub fn determine_axes(&self) -> Vec<glyphs3::Axis> {
+    fn determine_axes(&self) -> Vec<glyphs3::Axis> {
         // If we have an Axes custom parameter, start with that.
         if let Some(axes_param) = self.custom_parameters.iter().find(|x| x.name == "Axes") {
             if let Some(axes_cp) = axes_param.value.as_array() {

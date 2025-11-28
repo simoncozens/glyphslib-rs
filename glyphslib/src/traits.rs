@@ -10,6 +10,7 @@ use paste::paste;
 
 macro_rules! impl_glyphs_structure {
     (trait $trait_name:ident for $struct_name2:path, $struct_name3:path {$($inner:tt)*}) => {
+        #[doc = concat!("Trait for ", stringify!($trait_name), " implemented for both Glyphs2 and Glyphs3.")]
         pub trait $trait_name {
             impl_glyphs_structure!(declarations $($inner)*);
         }

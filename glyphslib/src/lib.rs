@@ -1,5 +1,132 @@
+//! # glyphslib-rs
+//!
+//! A Rust library for reading, writing, and manipulating Glyphs font source files (.glyphs and .glyphspackage).
+//!
+//! This crate provides full support for both Glyphs 2 and Glyphs 3 file formats, allowing you to:
+//! - Load and parse Glyphs files
+//! - Access and modify font data (masters, instances, glyphs, layers, etc.)
+//! - Serialize modified data back to Glyphs format
+//! - Convert between Glyphs 2 and Glyphs 3 formats
+//!
+//! ## File Format Support
+//!
+//! - **Glyphs 2**: The original file format using OpenStep Property Lists
+//! - **Glyphs 3**: The modern file format with enhanced features and better structure
+//!
+//! The library automatically detects which format is being used and provides a unified interface
+//! through the [`Font`] enum.
+//!
+//! ## Examples
+//!
+//! ### Loading a Glyphs file
+//!
+//! ```no_run
+//! use glyphslib::Font;
+//! use std::path::Path;
+//!
+//! // Load a .glyphs or .glyphspackage file
+//! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+//!
+//! // Check the format version
+//! match &font {
+//!     Font::Glyphs2(g2) => println!("Loaded Glyphs 2 file: {}", g2.family_name),
+//!     Font::Glyphs3(g3) => println!("Loaded Glyphs 3 file: {}", g3.family_name),
+//! }
+//! ```
+//!
+//! ### Examining font data
+//!
+//! ```no_run
+//! use glyphslib::{Font, GlyphsFile};
+//! use std::path::Path;
+//!
+//! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+//!
+//! // Access common properties regardless of version
+//! let font_ref = font.as_ref();
+//! println!("Family: {}", font_ref.family_name());
+//! println!("Units per em: {}", font_ref.units_per_em());
+//! println!("Number of glyphs: {}", font_ref.glyphs().len());
+//!
+//! // Iterate through glyphs
+//! for glyph in font_ref.glyphs() {
+//!     println!("Glyph: {}", glyph.name());
+//!     println!("  Layers: {}", glyph.layers().len());
+//! }
+//!
+//! // Access masters
+//! for master in font_ref.masters() {
+//!     println!("Master: {}", master.name());
+//! }
+//! ```
+//!
+//! ### Modifying font data
+//!
+//! ```no_run
+//! use glyphslib::Font;
+//! use std::path::Path;
+//!
+//! let mut font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+//!
+//! // Modify properties based on version
+//! match &mut font {
+//!     Font::Glyphs2(g2) => {
+//!         g2.designer = Some("Jane Doe".to_string());
+//!         // Modify a glyph
+//!         if let Some(glyph) = g2.glyphs.iter_mut().find(|g| g.glyph_name == "A") {
+//!             glyph.export = false;
+//!         }
+//!     }
+//!     Font::Glyphs3(g3) => {
+//!         g3.properties.insert("designer".to_string(), "Jane Doe".into());
+//!         // Modify a glyph
+//!         if let Some(glyph) = g3.glyphs.iter_mut().find(|g| g.glyph_name == "A") {
+//!             glyph.export = Some(false);
+//!         }
+//!     }
+//! }
+//! ```
+//!
+//! ### Serializing back to Glyphs format
+//!
+//! ```no_run
+//! use glyphslib::Font;
+//! use std::path::Path;
+//! use std::fs;
+//!
+//! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+//!
+//! // Serialize to string
+//! let output = match &font {
+//!     Font::Glyphs2(g2) => openstep_plist::to_string(g2).unwrap(),
+//!     Font::Glyphs3(g3) => openstep_plist::to_string(g3).unwrap(),
+//! };
+//!
+//! // Write to file
+//! fs::write("MyFont_modified.glyphs", output).unwrap();
+//! ```
+//!
+//! ### Converting between formats
+//!
+//! ```no_run
+//! use glyphslib::Font;
+//! use std::path::Path;
+//!
+//! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+//!
+//! // Convert Glyphs 2 to Glyphs 3
+//! let glyphs3 = match font {
+//!     Font::Glyphs2(g2) => g2.into_glyphs3(),
+//!     Font::Glyphs3(g3) => g3,
+//! };
+//! ```
+
+#![deny(missing_docs)]
+/// Common types and structures shared between Glyphs 2 and Glyphs 3 formats
 pub mod common;
+/// Glyphs 2 file format structures
 pub mod glyphs2;
+/// Glyphs 3 file format structures
 pub mod glyphs3;
 mod serde;
 mod traits;
@@ -23,12 +150,31 @@ fn is_glyphs3(plist: &Plist) -> bool {
         .unwrap_or(false)
 }
 
+/// A font loaded from a Glyphs file, either version 2 or 3
+///
+/// This enum allows working with both Glyphs file format versions through a unified interface.
+/// Use the [`GlyphsFile`] trait to access common properties regardless of version.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Font {
+    /// A Glyphs 2 format font
     Glyphs2(Glyphs2),
+    /// A Glyphs 3 format font
     Glyphs3(Glyphs3),
 }
 impl Font {
+    /// Load a Glyphs file from disk
+    ///
+    /// Supports both `.glyphs` files and `.glyphspackage` directories.
+    /// The file format version is automatically detected.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use glyphslib::Font;
+    /// use std::path::Path;
+    ///
+    /// let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
+    /// ```
     pub fn load(glyphs_file: &path::Path) -> Result<Self, Box<dyn std::error::Error>> {
         if glyphs_file.extension() == Some(OsStr::new("glyphspackage")) {
             return Font::load_package(glyphs_file);
@@ -36,6 +182,20 @@ impl Font {
         let raw_content = fs::read_to_string(glyphs_file)?;
         Self::load_str(&raw_content)
     }
+
+    /// Load a Glyphs file from a string
+    ///
+    /// Parses the OpenStep Property List format and deserializes into the appropriate
+    /// Glyphs 2 or Glyphs 3 structure based on the format version marker.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use glyphslib::Font;
+    ///
+    /// let glyphs_data = std::fs::read_to_string("MyFont.glyphs").unwrap();
+    /// let font = Font::load_str(&glyphs_data).unwrap();
+    /// ```
     pub fn load_str(raw_content: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let plist = Plist::parse(raw_content)?;
         Font::from_plist(plist)
@@ -51,12 +211,20 @@ impl Font {
             Ok(Font::Glyphs2(glyphs2))
         }
     }
+
+    /// Get a reference to the font as a Glyphs 3 structure, if it is one
+    ///
+    /// Returns `None` if the font is in Glyphs 2 format.
     pub fn as_glyphs3(&self) -> Option<&Glyphs3> {
         match self {
             Font::Glyphs3(glyphs3) => Some(glyphs3),
             _ => None,
         }
     }
+
+    /// Get a reference to the font as a Glyphs 2 structure, if it is one
+    ///
+    /// Returns `None` if the font is in Glyphs 3 format.
     pub fn as_glyphs2(&self) -> Option<&Glyphs2> {
         match self {
             Font::Glyphs2(glyphs2) => Some(glyphs2),

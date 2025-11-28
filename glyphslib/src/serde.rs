@@ -16,6 +16,38 @@ use crate::{
     glyphs2::{self, AlignmentZone, CropRect},
 };
 
+pub(crate) fn is_false(b: &bool) -> bool {
+    !b
+}
+pub(crate) fn is_true(b: &bool) -> bool {
+    *b
+}
+pub(crate) fn bool_true() -> bool {
+    true
+}
+
+pub(crate) fn scale_unit() -> (f32, f32) {
+    (1.0, 1.0)
+}
+
+pub(crate) fn is_scale_unit(scale: &(f32, f32)) -> bool {
+    *scale == (1.0, 1.0)
+}
+pub(crate) fn is_default<T>(v: &T) -> bool
+where
+    T: Default + PartialEq,
+{
+    *v == T::default()
+}
+
+pub(crate) fn is_one_hundred(value: &i32) -> bool {
+    *value == 100
+}
+
+pub(crate) fn one_hundred() -> i32 {
+    100
+}
+
 impl<'de> Deserialize<'de> for MetricType {
     fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where

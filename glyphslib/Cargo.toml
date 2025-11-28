@@ -2,11 +2,17 @@
 name = "glyphslib"
 version = "0.1.0"
 edition = "2021"
-
-[[bin]]
-name = "glyphslib-roundtrip"
-path = "src/bin/roundtrip.rs"
-
+authors = ["Simon Cozens <simon@simon-cozens.org>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/simoncozens/glyphslib-rs"
+description = "A Rust library for reading, writing, and manipulating Glyphs font source files"
+homepage = "https://github.com/simoncozens/glyphslib-rs"
+documentation = "https://docs.rs/glyphslib"
+keywords = ["fonts", "glyphs", "typography", "opentype", "font-development"]
+categories = ["parsing", "graphics", "encoding"]
+readme = "README.md"
+rust-version = "1.70"
+exclude = ["resources/*", "GlyphsFileFormatv3.md"]
 
 [dev-dependencies]
 glob = "0.3.0"
@@ -14,7 +20,7 @@ pretty_assertions = "1.4.1"
 rstest = "0.24.0"
 
 [dependencies]
-openstep-plist = { path = "../openstep-plist" }
+openstep-plist = { version = "0.1", path = "../openstep-plist" }
 serde = "1.0"
 serde_path_to_error = "0.1"
 serde_with = "3.11"

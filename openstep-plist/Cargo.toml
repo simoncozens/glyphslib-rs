@@ -2,8 +2,16 @@
 name = "openstep-plist"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Simon Cozens <simon@simon-cozens.org>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/simoncozens/glyphslib-rs"
+description = "Parser and serializer for OpenStep Property List format"
+homepage = "https://github.com/simoncozens/glyphslib-rs"
+documentation = "https://docs.rs/openstep-plist"
+keywords = ["plist", "openstep", "parser", "serialization", "glyphs"]
+categories = ["parsing", "encoding"]
+readme = "README.md"
+rust-version = "1.70"
 
 [dependencies]
 itertools = { workspace = true }
