@@ -7,7 +7,7 @@ pub mod de;
 pub mod error;
 pub mod ser;
 
-use crate::error::Error;
+pub use crate::error::Error;
 
 /// A plist dictionary
 pub type Dictionary = BTreeMap<SmolStr, Plist>;
@@ -638,7 +638,7 @@ mod tests {
         // println!("{:?}", plist);
         let plist = Plist::Data(vec![0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
         let mut deserializer = crate::de::Deserializer::from_plist(&plist);
-        let plist: Plist = Plist::deserialize(&mut deserializer).unwrap();
+        Plist::deserialize(&mut deserializer).unwrap();
     }
 
     #[test]

@@ -25,4 +25,5 @@ serde = "1.0"
 serde_path_to_error = "0.1"
 serde_with = "3.11"
 itertools = { workspace = true }
+thiserror = { workspace = true }
 paste = "1.0.15"
