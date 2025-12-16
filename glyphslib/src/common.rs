@@ -81,9 +81,9 @@ pub struct Feature {
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct StylisticSetLabel {
     /// The language tag of the string value. The tag is based on the OpenType Language System Tags but omits trailing whitespace. Examples: `"dflt"`, `"DEU"`.
-    language: String,
+    pub language: String,
     /// The localized string value.
-    value: String,
+    pub value: String,
 }
 
 /// Color representation
