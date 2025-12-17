@@ -10,10 +10,10 @@ use serde::{
 };
 use serde_with::SerializeAs;
 
-use crate::glyphs3::{self, MetricType};
 use crate::{
     common::NodeType,
     glyphs2::{self, AlignmentZone, CropRect},
+    glyphs3::{self, MetricType},
 };
 
 pub(crate) fn is_false(b: &bool) -> bool {
@@ -528,7 +528,12 @@ where
     T: CurlyBraceReceiver<f32> + 'a,
     &'a T: MyIntoIterator<'a, Item = f32>,
 {
-    let middle: String = value.into_iter().map(|x| x.to_string()).join(", ");
+    let values: Vec<f32> = value.into_iter().collect();
+    if values.len() == 1 {
+        // Single value - serialize as a raw number, not a string with braces
+        return serializer.serialize_f32(values[0]);
+    }
+    let middle: String = values.iter().map(|x| x.to_string()).join(", ");
     serializer.serialize_str(&format!("{{{middle}}}"))
 }
 
