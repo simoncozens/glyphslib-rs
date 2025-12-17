@@ -63,7 +63,7 @@ fn is_alnum(b: u8) -> bool {
         || b.is_ascii_lowercase()
         || b == b'_'
         || b == b'$'
-        || b == b'/'
+        // || b == b'/'
         || b == b':'
         || b == b'.'
         || b == b'-'

@@ -487,4 +487,13 @@ tag = wght;
         let s = to_string(&foo).unwrap().replace("\n", " ");
         assert_eq!(s, r#"({ hidden = 1; name = Weight; tag = wght; });"#);
     }
+
+    #[test]
+    fn test_string_escaping() {
+        let str = "files/LinkedFontv3.glyphs";
+        let mut buf = Vec::new();
+        escape_string(&mut buf, str);
+        let output = buf.join("");
+        assert_eq!(output, "\"files/LinkedFontv3.glyphs\"");
+    }
 }
