@@ -12,11 +12,13 @@ use openstep_plist::Dictionary;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::common::{
-    Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, Kerning, NodeType, Orientation,
-    Version,
+use crate::{
+    common::{
+        Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, Kerning, NodeType,
+        Orientation, Version,
+    },
+    serde::{is_one_hundred, one_hundred},
 };
-use crate::serde::{is_one_hundred, one_hundred};
 
 /// Glyphs file format version 2 document
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]

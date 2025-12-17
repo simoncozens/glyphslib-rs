@@ -403,12 +403,12 @@ pub struct Glyph {
 pub struct SmartComponentSetting {
     /// The lower end of the value range of the property.
     #[serde(default, rename = "bottomValue")]
-    bottom_value: i32,
+    pub bottom_value: i32,
     /// The upper end of the value range of the property.
     #[serde(default, rename = "topValue")]
-    top_value: i32,
+    pub top_value: i32,
     /// The name of the property.
-    name: String,
+    pub name: String,
 }
 
 /// Layer definition (`GSLayer`)
@@ -871,9 +871,9 @@ pub enum SingularPropertyKey {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct LocalizedValue {
     /// The language tag of the string value. The tag is based on the OpenType Language System Tags but omits trailing whitespace. Examples: `"dflt"`, `"DEU"`.
-    language: String,
+    pub language: String,
     /// The localized string value.
-    value: String,
+    pub value: String,
 }
 
 /// Stem definition
