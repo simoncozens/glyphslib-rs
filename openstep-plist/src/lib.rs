@@ -8,6 +8,8 @@ pub mod error;
 pub mod ser;
 
 pub use crate::error::Error;
+use crate::error::LineColumn;
+pub use ser::to_string;
 
 /// A plist dictionary
 pub type Dictionary = BTreeMap<SmolStr, Plist>;
@@ -63,7 +65,7 @@ fn is_alnum(b: u8) -> bool {
         || b.is_ascii_lowercase()
         || b == b'_'
         || b == b'$'
-        // || b == b'/'
+        || b == b'/'
         || b == b':'
         || b == b'.'
         || b == b'-'
@@ -71,7 +73,7 @@ fn is_alnum(b: u8) -> bool {
 
 // Used for serialization; make sure UUID's get quoted
 fn is_alnum_strict(b: u8) -> bool {
-    is_alnum(b) && b != b'-'
+    is_alnum(b) && b != b'-' && b != b'/'
 }
 
 fn is_hex_upper(b: u8) -> bool {
@@ -264,17 +266,21 @@ impl Plist {
                         return Ok((Plist::Dictionary(dict), ix));
                     }
                     let (key, next) = Token::lex(s, ix)?;
-                    let key_str = Token::try_into_smolstr(key)?;
+                    let key_str = Token::try_into_smolstr(key).map_err(|e| e.at(s, ix))?;
                     let next = Token::expect(s, next, b'=');
                     if next.is_none() {
-                        return Err(Error::ExpectedEquals);
+                        return Err(Error::ExpectedEquals {
+                            lc: LineColumn::from_pos(s, ix),
+                        });
                     }
                     let (val, next) = Self::parse_rec(s, next.unwrap())?;
                     dict.insert(key_str, val);
-                    if let Some(next) = Token::expect(s, next, b';') {
-                        ix = next;
+                    if let Some(next_semicolon) = Token::expect(s, next, b';') {
+                        ix = next_semicolon;
                     } else {
-                        return Err(Error::ExpectedSemicolon);
+                        return Err(Error::ExpectedSemicolon {
+                            lc: LineColumn::from_pos(s, next),
+                        });
                     }
                 }
             }
@@ -289,17 +295,22 @@ impl Plist {
                     if let Some(ix) = Token::expect(s, next, b')') {
                         return Ok((Plist::Array(list), ix));
                     }
-                    if let Some(next) = Token::expect(s, next, b',') {
-                        ix = next;
-                        if let Some(next) = Token::expect(s, next, b')') {
-                            return Ok((Plist::Array(list), next));
+                    if let Some(next_comma) = Token::expect(s, next, b',') {
+                        ix = next_comma;
+                        if let Some(next_paren) = Token::expect(s, next_comma, b')') {
+                            return Ok((Plist::Array(list), next_paren));
                         }
                     } else {
-                        return Err(Error::ExpectedComma);
+                        return Err(Error::ExpectedComma {
+                            lc: LineColumn::from_pos(s, next),
+                        });
                     }
                 }
             }
-            _ => Err(Error::UnexpectedToken { name: tok.name() }),
+            _ => Err(Error::UnexpectedToken {
+                name: tok.name(),
+                lc: LineColumn::from_pos(s, ix),
+            }),
         }
     }
 
@@ -345,7 +356,7 @@ fn byte_from_hex(hex: [u8; 2]) -> Result<u8, Error> {
             b'0'..=b'9' => Ok(digit - b'0'),
             b'a'..=b'f' => Ok(digit - b'a' + 10),
             b'A'..=b'F' => Ok(digit - b'A' + 10),
-            _ => Err(Error::BadData),
+            _ => Err(Error::BadDataInternal),
         }
     }
     let maj = hex_digit_to_byte(hex[0])? << 4;
@@ -369,14 +380,19 @@ impl<'a> Token<'a> {
                     + s.as_bytes()[data_start..]
                         .iter()
                         .position(|b| *b == b'>')
-                        .ok_or(Error::UnclosedData)?;
+                        .ok_or(Error::UnclosedData {
+                            lc: LineColumn::from_pos(s, start),
+                        })?;
                 let chunks = s.as_bytes()[data_start..data_end].chunks_exact(2);
                 if !chunks.remainder().is_empty() {
-                    return Err(Error::BadData);
+                    return Err(Error::BadData {
+                        lc: LineColumn::from_pos(s, data_start),
+                    });
                 }
                 let data = chunks
                     .map(|x| byte_from_hex(x.try_into().unwrap()))
-                    .collect::<Result<_, _>>()?;
+                    .collect::<Result<_, _>>()
+                    .map_err(|e| e.at(s, data_start))?;
                 Ok((Token::Data(data), data_end + 1))
             }
             b'"' => {
@@ -399,9 +415,11 @@ impl<'a> Token<'a> {
                         b'\\' => {
                             buf.push_str(&s[cow_start..ix]);
                             if ix + 1 == s.len() {
-                                return Err(Error::UnclosedString);
+                                return Err(Error::UnclosedString {
+                                    lc: LineColumn::from_pos(s, start),
+                                });
                             }
-                            let (c, len) = parse_escape(&s[ix..])?;
+                            let (c, len) = parse_escape(&s[ix..]).map_err(|e| e.at(s, start))?;
                             buf.push(c);
                             ix += len;
                             cow_start = ix;
@@ -409,7 +427,9 @@ impl<'a> Token<'a> {
                         _ => ix += 1,
                     }
                 }
-                Err(Error::UnclosedString)
+                Err(Error::UnclosedString {
+                    lc: LineColumn::from_pos(s, start),
+                })
             }
             _ => {
                 if is_alnum(b) {
@@ -422,7 +442,10 @@ impl<'a> Token<'a> {
                     }
                     Ok((Token::Atom(&s[start..ix]), ix))
                 } else {
-                    Err(Error::UnexpectedChar(s[start..].chars().next().unwrap()))
+                    Err(Error::UnexpectedChar {
+                        ch: s[start..].chars().next().unwrap(),
+                        lc: LineColumn::from_pos(s, start),
+                    })
                 }
             }
         }
@@ -432,7 +455,7 @@ impl<'a> Token<'a> {
         match self {
             Token::Atom(s) => Ok(s.into()),
             Token::String(s) => Ok(s.into()),
-            _ => Err(Error::NotAString {
+            _ => Err(Error::NotAStringInternal {
                 token_name: self.name(),
             }),
         }
@@ -492,7 +515,9 @@ fn parse_escape(s: &str) -> Result<(char, usize), Error> {
                 .transpose()
                 .ok()
                 .flatten()
-                .ok_or_else(|| Error::InvalidUnicodeEscape(s[..ix].to_string()))
+                .ok_or_else(|| Error::InvalidUnicodeEscapeInternal {
+                    seq: s[..ix].to_string(),
+                })
                 .map(|c| (c, ix))
         }
         b'0'..=b'3' if s.len() >= 4 => {
@@ -504,10 +529,10 @@ fn parse_escape(s: &str) -> Result<(char, usize), Error> {
                 ix += 3;
                 Ok((oct as _, ix))
             } else {
-                Err(Error::UnknownEscape)
+                Err(Error::UnknownEscapeInternal)
             }
         }
-        _ => Err(Error::UnknownEscape),
+        _ => Err(Error::UnknownEscapeInternal),
     }
 }
 
@@ -520,8 +545,8 @@ fn is_surrogate(val: u16) -> bool {
 // then will read up to four bytes
 fn parse_hex_digit(bytes: &[u8]) -> Result<(u16, usize), Error> {
     match bytes {
-        &[] => Err(Error::UnknownEscape),
-        &[one, ..] if !one.is_ascii_hexdigit() => Err(Error::UnknownEscape),
+        &[] => Err(Error::UnknownEscapeInternal),
+        &[one, ..] if !one.is_ascii_hexdigit() => Err(Error::UnknownEscapeInternal),
         other => Ok(other
             .iter()
             .take(4)
@@ -685,5 +710,35 @@ mod tests {
         );
         assert_eq!(second.get("tag").and_then(Plist::as_str), Some("slng"));
         assert_eq!(second.get("num").and_then(Plist::as_f64), Some(-3.0));
+    }
+
+    #[test]
+    fn error_messages_with_line_column() {
+        // Test missing semicolon with line/column information
+        let input = r#"{
+            name = "test";
+            value = 123
+        }"#;
+        let err = Plist::parse(input).unwrap_err();
+        let err_msg = format!("{}", err);
+        assert!(err_msg.contains("line 3"));
+        assert!(err_msg.contains("column"));
+
+        // Test unexpected character with line/column information
+        let input2 = "{ foo = bar@ }";
+        let err2 = Plist::parse(input2).unwrap_err();
+        let err_msg2 = format!("{}", err2);
+        // Error message should contain line and column
+        assert!(err_msg2.contains("line"));
+        assert!(err_msg2.contains("column"));
+
+        // Test missing equals sign with line/column information
+        let input3 = r#"{
+            foo bar = 1;
+        }"#;
+        let err3 = Plist::parse(input3).unwrap_err();
+        let err_msg3 = format!("{}", err3);
+        // The error happens when lexing "bar" and expecting an '=' but finding another atom
+        assert!(err_msg3.contains("line") && err_msg3.contains("column"));
     }
 }

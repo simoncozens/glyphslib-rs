@@ -8,6 +8,16 @@ use crate::{
 
 pub struct Serializer {
     output: Vec<SmolStr>,
+    // Stack to buffer sequence elements and decide inline vs block formatting
+    seq_stack: Vec<SeqState>,
+    // Track nesting of maps to append trailing semicolon for top-level map
+    map_depth: usize,
+}
+
+struct SeqState {
+    elements: Vec<Vec<SmolStr>>, // serialized tokens per element
+    all_simple: bool,
+    all_numeric: bool, // true if all elements are numeric (affects comma spacing)
 }
 
 macro_rules! forward_to {
@@ -24,9 +34,12 @@ pub fn to_string<T>(value: &T) -> Result<String>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer { output: Vec::new() };
+    let mut serializer = Serializer {
+        output: Vec::new(),
+        seq_stack: Vec::new(),
+        map_depth: 0,
+    };
     value.serialize(&mut serializer)?;
-    serializer.output.push(SmolStr::new_static("\n"));
     Ok(serializer.output.join(""))
 }
 
@@ -152,7 +165,11 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        self.output.push(SmolStr::new_static("(\n"));
+        self.seq_stack.push(SeqState {
+            elements: Vec::new(),
+            all_simple: true,
+            all_numeric: true,
+        });
         Ok(self)
     }
 
@@ -184,6 +201,7 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+        self.map_depth += 1;
         self.output.push(SmolStr::new_static("{"));
         Ok(self)
     }
@@ -217,19 +235,79 @@ impl ser::SerializeSeq for &mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        if !self.output.ends_with(&[SmolStr::new_static("(\n")]) {
-            self.output.push(SmolStr::new_static(",\n"));
+        // Serialize element into a temporary serializer to inspect complexity
+        let mut tmp = Serializer {
+            output: Vec::new(),
+            seq_stack: Vec::new(),
+            map_depth: 0,
+        };
+        value.serialize(&mut tmp)?;
+        // Determine if element is complex (starts with map or sequence)
+        let complex = match tmp.output.first() {
+            Some(first) => {
+                let s = first.as_str();
+                s.starts_with("(\n") || s == "(" || s == "{"
+            }
+            None => false,
+        };
+        // Check if all output tokens are numeric (for comma spacing decision)
+        let all_numeric = tmp.output.iter().all(|tok| {
+            let s = tok.as_str();
+            s.parse::<f64>().is_ok() || s == "-" || s == "."
+        });
+        if let Some(state) = self.seq_stack.last_mut() {
+            if complex {
+                state.all_simple = false;
+            }
+            if !all_numeric {
+                state.all_numeric = false;
+            }
+            state.elements.push(tmp.output);
         }
-        value.serialize(&mut **self)
+        Ok(())
     }
 
     // Close the sequence.
     fn end(self) -> Result<()> {
-        if !self.output.ends_with(&[SmolStr::new_static("(\n")]) {
-            self.output.push(SmolStr::new_static("\n"));
+        if let Some(state) = self.seq_stack.pop() {
+            if state.all_simple {
+                // Inline formatting: (a,b,c) or (a, b, c) depending on type
+                self.output.push(SmolStr::new_static("("));
+                for (i, elem) in state.elements.iter().enumerate() {
+                    if i > 0 {
+                        // Numbers: no space. Strings/other: space after comma
+                        if state.all_numeric {
+                            self.output.push(SmolStr::new_static(","));
+                        } else {
+                            self.output.push(SmolStr::new_static(", "));
+                        }
+                    }
+                    // Append element tokens verbatim
+                    for tok in elem {
+                        self.output.push(tok.clone());
+                    }
+                }
+                self.output.push(SmolStr::new_static(")"));
+            } else {
+                // Block formatting with newlines
+                self.output.push(SmolStr::new_static("(\n"));
+                for (i, elem) in state.elements.iter().enumerate() {
+                    if i > 0 {
+                        self.output.push(SmolStr::new_static(",\n"));
+                    }
+                    for tok in elem {
+                        self.output.push(tok.clone());
+                    }
+                }
+                self.output.push(SmolStr::new_static("\n)"));
+            }
+            // Semicolons are never added after arrays - they're only added by
+            // serialize_value for dictionary values
+            Ok(())
+        } else {
+            // Should not happen
+            Ok(())
         }
-        self.output.push(SmolStr::new_static(")"));
-        Ok(())
     }
 }
 
@@ -323,6 +401,9 @@ impl ser::SerializeMap for &mut Serializer {
 
     fn end(self) -> Result<()> {
         self.output.push(SmolStr::new_static("\n}"));
+        // Never add semicolon after closing brace - semicolons are only added
+        // by serialize_value for dictionary values
+        self.map_depth = self.map_depth.saturating_sub(1);
         Ok(())
     }
 }
@@ -438,19 +519,21 @@ mod tests {
         ]
         .into();
         let s = to_string(&plist).unwrap();
-        assert_eq!(s, r#"(hello, world);"#);
+        assert_eq!(s, r#"(hello, world)"#);
     }
 
     #[test]
     fn test_serialize_map() {
-        let plist_str = r#"{array = (1, 2);foo = bar;hello = world;};"#;
+        let plist_str = "{\nfoo = bar;\nhello = world;\ntuple = (1,2);\n}";
         let plist: Plist = Plist::parse(plist_str).unwrap();
-        let s = to_string(&plist).unwrap().replace("\n", "");
+        let s = to_string(&plist).unwrap();
         assert_eq!(s, plist_str);
     }
 
     #[test]
     fn test_serialize_struct() {
+        // Based on real Glyphs file format: dictionaries in arrays have no semicolon,
+        // top-level dict has no semicolon or trailing newline
         let plist_str = r#"
 {
 axes = (
@@ -460,9 +543,9 @@ name = Weight;
 tag = wght;
 }
 );
-};"#
-        .replace("\n", "");
-        let plist: Plist = Plist::parse(&plist_str).unwrap();
+}"#
+        .trim(); // Remove leading newline
+        let plist: Plist = Plist::parse(plist_str).unwrap();
         let s = to_string(&plist).unwrap();
         assert_eq!(s, plist_str);
     }
@@ -484,8 +567,11 @@ tag = wght;
             name: "Weight".to_string(),
             tag: "wght".to_string(),
         }];
-        let s = to_string(&foo).unwrap().replace("\n", " ");
-        assert_eq!(s, r#"({ hidden = 1; name = Weight; tag = wght; });"#);
+        let s = to_string(&foo).unwrap();
+        // Block format with dict inside array: (\n{...}\n)
+        // When formatted on one line for comparison, this becomes: ({ ... })
+        let expected = "(\n{\nhidden = 1;\nname = Weight;\ntag = wght;\n}\n)";
+        assert_eq!(s, expected);
     }
 
     #[test]
