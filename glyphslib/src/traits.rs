@@ -1,11 +1,10 @@
-use crate::common::Color;
-use crate::common::FeatureClass;
-use crate::glyphs2;
-use crate::glyphs3;
+use crate::{
+    common::{Color, FeatureClass},
+    glyphs2, glyphs3,
+};
 // Utility traits to allow us to treat Glyphs2 and Glyphs3 structures interchangeablely
 // where appropriate.
-use crate::Glyphs2;
-use crate::Glyphs3;
+use crate::{Glyphs2, Glyphs3};
 use paste::paste;
 
 macro_rules! impl_glyphs_structure {
@@ -129,6 +128,10 @@ macro_rules! impl_glyphs_structure {
 }
 
 impl_glyphs_structure!(trait GlyphsMaster for glyphs2::Master, glyphs3::Master {
+    name ("the name of the master") {
+        get &str;
+        set String;
+    };
     custom_parameters ("the master-specific custom parameters") {
         get &[crate::common::CustomParameter];
         get_mut &mut Vec<crate::common::CustomParameter>;
@@ -206,3 +209,21 @@ impl_glyphs_structure!(trait GlyphsGlyph for glyphs2::Glyph, glyphs3::Glyph {
         set Option<Color>;
     };
 });
+
+#[cfg(test)]
+mod tests {
+    use std::path;
+
+    use crate::Font;
+
+    use super::GlyphsFile;
+
+    #[test]
+    fn test_traits() {
+        let file = "resources/RadioCanadaDisplay.glyphs";
+        let font = Font::load(path::Path::new(file)).unwrap();
+        let glyphs3 = font.as_glyphs3().unwrap();
+        assert_eq!(glyphs3.glyphs().len(), 477);
+        assert_eq!(glyphs3.family_name(), "Radio Canada Display");
+    }
+}

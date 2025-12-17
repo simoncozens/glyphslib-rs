@@ -43,19 +43,17 @@
 //! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
 //!
 //! // Access common properties regardless of version
-//! let font_ref = font.as_ref();
-//! println!("Family: {}", font_ref.family_name());
-//! println!("Units per em: {}", font_ref.units_per_em());
-//! println!("Number of glyphs: {}", font_ref.glyphs().len());
+//! let font = font.as_glyphs3().unwrap();
+//! println!("Family: {}", font.family_name());
+//! println!("Number of glyphs: {}", font.glyphs().len());
 //!
 //! // Iterate through glyphs
-//! for glyph in font_ref.glyphs() {
+//! for glyph in font.glyphs() {
 //!     println!("Glyph: {}", glyph.name());
-//!     println!("  Layers: {}", glyph.layers().len());
 //! }
 //!
 //! // Access masters
-//! for master in font_ref.masters() {
+//! for master in font.masters() {
 //!     println!("Master: {}", master.name());
 //! }
 //! ```
@@ -65,6 +63,7 @@
 //! ```no_run
 //! use glyphslib::Font;
 //! use std::path::Path;
+//! use glyphslib::glyphs3::{Property, SingularPropertyKey};
 //!
 //! let mut font = Font::load(Path::new("MyFont.glyphs")).unwrap();
 //!
@@ -73,15 +72,15 @@
 //!     Font::Glyphs2(g2) => {
 //!         g2.designer = Some("Jane Doe".to_string());
 //!         // Modify a glyph
-//!         if let Some(glyph) = g2.glyphs.iter_mut().find(|g| g.glyph_name == "A") {
+//!         if let Some(glyph) = g2.glyphs.iter_mut().find(|g| g.name == "A") {
 //!             glyph.export = false;
 //!         }
 //!     }
 //!     Font::Glyphs3(g3) => {
-//!         g3.properties.insert("designer".to_string(), "Jane Doe".into());
+//!         g3.properties.push(Property::singular(SingularPropertyKey::Designer, "Jane Doe".to_string()));
 //!         // Modify a glyph
-//!         if let Some(glyph) = g3.glyphs.iter_mut().find(|g| g.glyph_name == "A") {
-//!             glyph.export = Some(false);
+//!         if let Some(glyph) = g3.glyphs.iter_mut().find(|g| g.name == "A") {
+//!             glyph.export = false;
 //!         }
 //!     }
 //! }
@@ -115,10 +114,7 @@
 //! let font = Font::load(Path::new("MyFont.glyphs")).unwrap();
 //!
 //! // Convert Glyphs 2 to Glyphs 3
-//! let glyphs3 = match font {
-//!     Font::Glyphs2(g2) => g2.into_glyphs3(),
-//!     Font::Glyphs3(g3) => g3,
-//! };
+//! let glyphs3 = font.upgrade();
 //! ```
 
 #![deny(missing_docs)]
@@ -422,6 +418,6 @@ mod tests {
         let font = Font::load_str(&raw_content).unwrap();
         let serialised = font.to_string().unwrap();
         let new_plist = Plist::parse(&serialised).unwrap();
-        assert_eq!(plist, new_plist);
+        pretty_assertions::assert_eq!(plist, new_plist);
     }
 }

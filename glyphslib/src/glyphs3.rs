@@ -775,10 +775,12 @@ pub enum Property {
 }
 
 impl Property {
-    pub(crate) fn singular(key: SingularPropertyKey, value: String) -> Self {
+    /// Create a singular property
+    pub fn singular(key: SingularPropertyKey, value: String) -> Self {
         Property::SingularProperty { key, value }
     }
-    pub(crate) fn localized_with_default(key: LocalizedPropertyKey, value: String) -> Self {
+    /// Create a localized property with a default language value
+    pub fn localized_with_default(key: LocalizedPropertyKey, value: String) -> Self {
         Property::LocalizedProperty {
             key,
             values: vec![LocalizedValue {
