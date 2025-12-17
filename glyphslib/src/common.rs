@@ -14,11 +14,11 @@ pub struct FeatureClass {
     ///
     /// Note that this code may not just be a whitespace-separated list of glyph names but may also contain comments and other feature code constructs. Examples: "A B C", "noon-ar noon-ar.fina noon-ar.medi noon-ar.init # noon-ar glyphs".
     pub code: String,
-    /// The name of the class. The leading at sign (`@`) is not included. Examples: `"Uppercase"`, `"CombiningTopAccents"`.
-    pub name: String,
     /// Whether the class is disabled.
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
+    /// The name of the class. The leading at sign (`@`) is not included. Examples: `"Uppercase"`, `"CombiningTopAccents"`.
+    pub name: String,
     /// A string serving as a description or comment about the class.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
@@ -27,13 +27,13 @@ pub struct FeatureClass {
 /// Custom parameter (`GSCustomParameter`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct CustomParameter {
+    /// Whether the custom parameter is disabled.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub disabled: bool,
     /// The name of the custom parameter.
     pub name: String,
     /// The value of the custom parameter.
     pub value: Plist,
-    /// Whether the custom parameter is disabled.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub disabled: bool,
 }
 
 /// Feature prefix (`GSFeaturePrefix`)
@@ -44,12 +44,12 @@ pub struct FeaturePrefix {
     pub automatic: bool,
     /// The code of the feature prefix. Example: `"languagesystem DFLT dflt;"`.
     pub code: String,
-    /// The name of the feature prefix. Example: `"Languagesystems"`.
-    #[serde(alias = "tag")] // Of course some random Glyphs version did this
-    pub name: String,
     /// Whether the feature prefix is disabled.
     #[serde(default, skip_serializing_if = "is_default")]
     pub disabled: bool,
+    /// The name of the feature prefix. Example: `"Languagesystems"`.
+    #[serde(alias = "tag")] // Of course some random Glyphs version did this
+    pub name: String,
     /// A string serving as a description or comment about the feature prefix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,

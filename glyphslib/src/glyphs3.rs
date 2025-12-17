@@ -374,6 +374,12 @@ pub struct Glyph {
     /// The script of the glyph. If unset, then the script is based on a glyph data lookup based on the glyph name.
     #[serde(default, skip_serializing_if = "is_default")]
     pub script: Option<String>,
+    /// The sort name of the glyph. If unset, then the sort name is based on a glyph data lookup based on the glyph name.
+    #[serde(default, skip_serializing_if = "is_default", rename = "sortName")]
+    pub sort_name: Option<String>,
+    /// The sort name of the glyph used in the *Keep Alternates Next to Base Glyph* display mode. If unset, then the sort name is based on a glyph data lookup based on the glyph name.
+    #[serde(default, skip_serializing_if = "is_default", rename = "sortNameKeep")]
+    pub sort_name_keep: Option<String>,
     /// The subcategory of the glyph. If unset, then the subcategory is based on a glyph data lookup based on the glyph name.
     #[serde(default, skip_serializing_if = "is_default", rename = "subCategory")]
     pub subcategory: Option<String>,
@@ -513,39 +519,71 @@ pub struct Anchor {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BackgroundImage {
     /// The rotation angle of the image in degrees clockwise.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// The cropped frame of the image, specified as the crop origin X/Y and size width/height.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crop: Option<(f32, f32, f32, f32)>,
     /// The file path of the image file relative to the document file.
     #[serde(rename = "imagePath")]
     pub image_path: String,
     /// Whether the image is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
-    /// The scale factor of the image.
-    #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
-    pub scale: (f32, f32),
     /// The position of the image.
     #[serde(default, skip_serializing_if = "is_default")]
     pub pos: (f32, f32),
+    /// The scale factor of the image.
+    #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
+    pub scale: (f32, f32),
 }
+
+/// Guide type (`GSGuideType`)
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
+pub enum GuideType {
+    /// Line guide
+    #[default]
+    Line,
+    /// Circle guide
+    Circle,
+    /// Rectangle guide
+    Rect,
+}
+
 /// Guide definition (`GSGuide`)
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Guide {
-    /// The orientation of the guide.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub alignment: Orientation,
     /// The angle at which the guide is drawn in degrees clockwise.
     #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// Whether the angle of the guide is locked.
+    #[serde(default, skip_serializing_if = "is_default", rename = "lockAngle")]
+    pub lock_angle: bool,
     /// Whether the guide is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
+    /// The orientation of the guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub orientation: Orientation,
     /// The position of the guide.
     #[serde(default, skip_serializing_if = "is_default")]
     pub pos: (f32, f32),
-    /// The scale of the guide.
+    /// Whether the measurement of the guide is shown
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "showMeasurement"
+    )]
+    pub show_measurement: bool,
+    /// The size of the guide.
     #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
-    pub scale: (f32, f32),
+    pub size: (f32, f32),
+    /// The type of the guide
+    #[serde(default, skip_serializing_if = "is_default", rename = "type")]
+    pub guide_type: GuideType,
+    /// Custom data associated with the guide.
+    #[serde(default, rename = "userData", skip_serializing_if = "Option::is_none")]
+    pub user_data: Option<Dictionary>,
 }
 
 /// Shape - either a path or a component
@@ -624,6 +662,9 @@ pub struct Component {
     /// The scale transform of the component.
     #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
     pub scale: (f32, f32),
+    /// The slant transform of the component.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub slant: (f32, f32),
     /// Custom data associated with the component.
     #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
@@ -833,9 +874,49 @@ pub struct LocalizedValue {
 /// Stem definition
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Stem {
+    /// Whether the stem is a horizontal stem.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub horizontal: bool,
     /// The name of the stem.
     name: String,
-    /// Whether the stem is a horizontal stem.
-    #[serde(default)]
-    pub horizontal: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use openstep_plist::de::Deserializer;
+
+    use super::*;
+
+    #[test]
+    fn test_guide() {
+        let data = r#"
+        {
+            angle = 45.0;
+            lockAngle = 1;
+            locked = 0;
+            orientation = left;
+            pos = (100.0, 200.0);
+            showMeasurement = 1;
+            size = (300.0, 400.0);
+            type = "Line";
+            userData = {
+                customKey = "customValue";
+            };
+        }
+        "#;
+        let plist = Plist::parse(data).expect("Failed to parse plist");
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let guide: Guide =
+            serde_path_to_error::deserialize(deserializer).expect("Failed to deserialize Guide");
+
+        assert_eq!(guide.angle, 45.0);
+        assert!(guide.lock_angle);
+        assert!(!guide.locked);
+        assert_eq!(guide.orientation, Orientation::Left);
+        assert_eq!(guide.pos, (100.0, 200.0));
+        assert!(guide.show_measurement);
+        assert_eq!(guide.size, (300.0, 400.0));
+        assert_eq!(guide.guide_type, GuideType::Line);
+        assert!(guide.user_data.is_some());
+    }
 }

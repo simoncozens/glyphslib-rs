@@ -19,11 +19,12 @@ impl From<glyphs2::Node> for glyphs3::Node {
 impl From<glyphs2::Guide> for glyphs3::Guide {
     fn from(val: glyphs2::Guide) -> Self {
         glyphs3::Guide {
-            alignment: val.alignment,
+            orientation: val.alignment,
             angle: val.angle,
             locked: val.locked,
             pos: val.pos,
-            scale: val.scale,
+            size: val.scale,
+            ..Default::default()
         }
     }
 }
@@ -43,6 +44,7 @@ impl From<glyphs2::BackgroundImage> for glyphs3::BackgroundImage {
         let decomposed = decompose(&val.transform);
         glyphs3::BackgroundImage {
             angle: decomposed.rotation.to_degrees(), // I think it's degrees?
+            crop: Some((0.0, 0.0, 0.0, 0.0)),
             image_path: val.image_path,
             locked: val.locked,
             scale: decomposed.scale,
