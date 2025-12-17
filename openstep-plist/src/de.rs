@@ -1,5 +1,5 @@
 use serde::{
-    de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor},
+    de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     forward_to_deserialize_any,
 };
 use smol_str::SmolStr;
@@ -85,7 +85,26 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
 
     forward_to_deserialize_any! {i8 i16 i32 u8 u16 u32 u64 f32 char str unit unit_struct}
     forward_to_deserialize_any! {bytes}
-    forward_to_deserialize_any! {tuple tuple_struct struct enum identifier ignored_any}
+    forward_to_deserialize_any! {tuple tuple_struct struct identifier ignored_any}
+
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        match self.element() {
+            Plist::String(s) => visitor
+                .visit_enum(de::value::StringDeserializer::new(s.clone()).into_deserializer()),
+            _ => Err(Error::UnexpectedDataType {
+                expected: "string",
+                found: self.element().name(),
+            }),
+        }
+    }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
     where
