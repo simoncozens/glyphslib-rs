@@ -1,6 +1,6 @@
 [package]
 name = "glyphslib"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Simon Cozens <simon@simon-cozens.org>"]
 license = "MIT OR Apache-2.0"
@@ -20,7 +20,7 @@ pretty_assertions = "1.4.1"
 rstest = "0.24.0"
 
 [dependencies]
-openstep-plist = { version = "0.1", path = "../openstep-plist" }
+openstep-plist = { version = "1.0.0", path = "../openstep-plist" }
 serde = "1.0"
 serde_path_to_error = "0.1"
 serde_with = "3.11"
