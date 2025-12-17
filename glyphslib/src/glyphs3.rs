@@ -647,6 +647,9 @@ pub struct Component {
         deserialize_with = "int_to_bool"
     )]
     pub locked: bool,
+    /// The ID of the master from which the component is derived.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub master_id: Option<String>,
     /// The orientation of the component.
     #[serde(default, skip_serializing_if = "is_default")]
     pub orientation: Orientation,
