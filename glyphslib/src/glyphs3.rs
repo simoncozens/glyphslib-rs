@@ -474,7 +474,7 @@ pub struct Layer {
     #[serde(default)]
     pub name: Option<String>,
     /// The Smart Glyph setting of the layer. The keys are the property names. The values are either `1` if the layer corresponds to the bottom value of the property or `2` if the layer corresponds to the top value of the property.
-    #[serde(default)]
+    #[serde(rename = "partSelection", default)]
     pub part_selection: BTreeMap<String, u8>,
     /// The shapes of the layer.
     #[serde(default)]
