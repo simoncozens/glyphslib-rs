@@ -827,6 +827,9 @@ pub enum LocalizedPropertyKey {
     /// Style names
     #[serde(rename = "styleNames")]
     StyleNames,
+    /// PostScript full names
+    #[serde(rename = "postscriptFullNames")]
+    PostscriptFullNames,
 }
 
 /// Singular (non-localized) property key
