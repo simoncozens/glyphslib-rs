@@ -128,7 +128,7 @@ mod serde;
 mod traits;
 mod upgrade;
 mod utils;
-use std::{ffi::OsStr, fs, path};
+use std::{collections::HashMap, ffi::OsStr, fs, path};
 
 pub use traits::GlyphsFile;
 
@@ -177,6 +177,70 @@ impl Font {
         }
         let raw_content = fs::read_to_string(glyphs_file)?;
         Self::load_str(&raw_content)
+    }
+
+    /// Load a Glyphs package from in-memory file entries.
+    ///
+    /// The map keys must be paths relative to the package root, for example:
+    /// - `fontinfo.plist`
+    /// - `order.plist`
+    /// - `UIState.plist` (optional)
+    /// - `glyphs/<glyph-file-name>.glyph`
+    pub fn load_package_entries(
+        entries: &HashMap<String, String>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let normalized_entries: HashMap<String, String> = entries
+            .iter()
+            .map(|(path, contents)| {
+                (
+                    path.replace('\\', "/")
+                        .trim_start_matches("./")
+                        .trim_start_matches('/')
+                        .to_string(),
+                    contents.clone(),
+                )
+            })
+            .collect();
+
+        let raw_content = normalized_entries
+            .get("fontinfo.plist")
+            .ok_or("Missing fontinfo.plist in glyphspackage entries")?;
+
+        let mut toplevel = Plist::parse(raw_content)?.expect_dict()?;
+
+        if let Some(ui_state) = normalized_entries.get("UIState.plist") {
+            let ui_state_plist = Plist::parse(ui_state)?;
+            // UIState.plist contains a dictionary with a key "displayStrings".
+            // However. the Glyphs3 non-package format has this key as "DisplayStrings" (with a capital 'D').
+            // So we can't just merge dictionaries, we have to rewrite the key.
+            toplevel.insert(
+                "DisplayStrings".into(),
+                ui_state_plist
+                    .expect_dict()?
+                    .get("displayStrings")
+                    .cloned()
+                    .unwrap_or(Plist::Array(vec![])),
+            );
+        }
+
+        let glyph_order_plist = normalized_entries
+            .get("order.plist")
+            .ok_or("Missing order.plist in glyphspackage entries")?;
+        let glyph_order = Plist::parse(glyph_order_plist).and_then(|p| p.expect_array())?;
+
+        let mut glyphs = vec![];
+        for glyph in glyph_order.iter() {
+            if let Some(name) = glyph.as_str() {
+                let glyph_path = format!("glyphs/{}.glyph", user_name_to_file_name(name));
+                if let Some(glyph_content) = normalized_entries.get(&glyph_path) {
+                    let glyph_plist = Plist::parse(glyph_content)?;
+                    glyphs.push(glyph_plist);
+                }
+            }
+        }
+
+        toplevel.insert("glyphs".into(), Plist::Array(glyphs));
+        Self::from_plist(Plist::Dictionary(toplevel))
     }
 
     /// Load a Glyphs file from a string
@@ -280,41 +344,36 @@ impl Font {
     }
 
     fn load_package(glyphs_file: &path::Path) -> Result<Self, Box<dyn std::error::Error>> {
-        let fontinfo_file = glyphs_file.join("fontinfo.plist");
-        let raw_content = fs::read_to_string(fontinfo_file)?;
-        let mut toplevel = Plist::parse(&raw_content)?.expect_dict()?;
-        let ui_state_file = glyphs_file.join("UIState.plist");
-        if let Ok(ui_state) = fs::read_to_string(ui_state_file) {
-            let ui_state_plist = Plist::parse(&ui_state)?;
-            // UIState.plist contains a dictionary with a key "displayStrings".
-            // However. the Glyphs3 non-package format has this key as "DisplayStrings" (with a capital 'D').
-            // So we can't just merge dictionaries, we have to rewrite the key.
-            toplevel.insert(
-                "DisplayStrings".into(),
-                ui_state_plist
-                    .expect_dict()?
-                    .get("displayStrings")
-                    .cloned()
-                    .unwrap_or(Plist::Array(vec![])),
-            );
+        let mut entries = HashMap::new();
+
+        entries.insert(
+            "fontinfo.plist".to_string(),
+            fs::read_to_string(glyphs_file.join("fontinfo.plist"))?,
+        );
+
+        if let Ok(ui_state) = fs::read_to_string(glyphs_file.join("UIState.plist")) {
+            entries.insert("UIState.plist".to_string(), ui_state);
         }
-        let glyph_order_file = glyphs_file.join("order.plist");
-        let glyph_order_plist = fs::read_to_string(glyph_order_file)?;
+
+        let glyph_order_plist = fs::read_to_string(glyphs_file.join("order.plist"))?;
+        entries.insert("order.plist".to_string(), glyph_order_plist.clone());
+
         let glyph_order = Plist::parse(&glyph_order_plist).and_then(|p| p.expect_array())?;
-        let mut glyphs = vec![];
         for glyph in glyph_order.iter() {
             if let Some(name) = glyph.as_str() {
                 let glyph_file = glyphs_file
                     .join("glyphs")
                     .join(format!("{}.glyph", user_name_to_file_name(name)));
                 if let Ok(glyph_content) = fs::read_to_string(glyph_file) {
-                    let glyph_plist = Plist::parse(&glyph_content)?;
-                    glyphs.push(glyph_plist);
+                    entries.insert(
+                        format!("glyphs/{}.glyph", user_name_to_file_name(name)),
+                        glyph_content,
+                    );
                 }
             }
         }
-        toplevel.insert("glyphs".into(), Plist::Array(glyphs));
-        Self::from_plist(Plist::Dictionary(toplevel))
+
+        Self::load_package_entries(&entries)
     }
 
     fn save_package(&self, glyphs_file: &path::Path) -> Result<(), Box<dyn std::error::Error>> {
