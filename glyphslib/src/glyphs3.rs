@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use openstep_plist::{Dictionary, Plist};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, OneOrMany};
 
 use crate::{
@@ -17,6 +17,46 @@ use crate::{
 
 pub(crate) fn version_two() -> i32 {
     2
+}
+
+fn component_alignment_disabled() -> i8 {
+    -1
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+struct ComponentSerde {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    alignment: Option<i8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    anchor: Option<String>,
+    #[serde(default, rename = "anchorTo", skip_serializing_if = "Option::is_none")]
+    anchor_to: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    angle: f32,
+    #[serde(default, skip_serializing_if = "is_default")]
+    attr: Dictionary,
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        deserialize_with = "int_to_bool"
+    )]
+    locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    master_id: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    orientation: Orientation,
+    #[serde(rename = "piece", default, skip_serializing_if = "is_default")]
+    smart_component_location: BTreeMap<String, f32>,
+    #[serde(default, rename = "pos", skip_serializing_if = "is_default")]
+    position: (f32, f32),
+    #[serde(rename = "ref")]
+    component_glyph: String,
+    #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
+    scale: (f32, f32),
+    #[serde(default, skip_serializing_if = "is_default")]
+    slant: (f32, f32),
+    #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
+    user_data: Dictionary,
 }
 
 /// Glyphs file format version 3 document
@@ -623,54 +663,99 @@ pub struct Node {
 }
 
 /// Component reference (`GSComponent`)
-#[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Component {
     /// Controls the automatic alignment of the component. `-1`: disabled (no alignment), `0`: default (alignment is based on context), `1`: force alignment (align regardless of context), `3`: horizontal alignment (align horizontally, but allow for manual vertical placement).
-    #[serde(default, skip_serializing_if = "is_default")]
     pub alignment: i8,
     /// The name of the attachment anchor. Set to specify a specific anchor when there are multiple candidates.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
     /// Undocumented anchor targeting.
-    #[serde(default, rename = "anchorTo", skip_serializing_if = "Option::is_none")]
     pub anchor_to: Option<String>,
     /// The rotation angle of the component in degrees clockwise.
-    #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
     /// The attributes of the component.
-    #[serde(default, skip_serializing_if = "is_default")]
     pub attr: Dictionary,
     /// Whether the component is locked.
-    #[serde(
-        default,
-        skip_serializing_if = "is_default",
-        deserialize_with = "int_to_bool"
-    )]
     pub locked: bool,
     /// The ID of the master from which the component is derived.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub master_id: Option<String>,
     /// The orientation of the component.
-    #[serde(default, skip_serializing_if = "is_default")]
     pub orientation: Orientation,
     /// The Smart Component settings of the component, mapping property names to values.
-    #[serde(rename = "piece", default, skip_serializing_if = "is_default")]
     pub smart_component_location: BTreeMap<String, f32>,
     /// The position (translation transform) of the component.
-    #[serde(default, rename = "pos", skip_serializing_if = "is_default")]
     pub position: (f32, f32),
     /// The name of the referenced glyph.
-    #[serde(rename = "ref")]
     pub component_glyph: String,
     /// The scale transform of the component.
-    #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
     pub scale: (f32, f32),
     /// The slant transform of the component.
-    #[serde(default, skip_serializing_if = "is_default")]
     pub slant: (f32, f32),
     /// Custom data associated with the component.
-    #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
+
+    #[allow(dead_code)]
+    pub(crate) alignment_explicit: bool,
+}
+
+impl Serialize for Component {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let alignment = if self.alignment != component_alignment_disabled() || self.alignment_explicit
+        {
+            Some(self.alignment)
+        } else {
+            None
+        };
+
+        ComponentSerde {
+            alignment,
+            anchor: self.anchor.clone(),
+            anchor_to: self.anchor_to.clone(),
+            angle: self.angle,
+            attr: self.attr.clone(),
+            locked: self.locked,
+            master_id: self.master_id.clone(),
+            orientation: self.orientation,
+            smart_component_location: self.smart_component_location.clone(),
+            position: self.position,
+            component_glyph: self.component_glyph.clone(),
+            scale: self.scale,
+            slant: self.slant,
+            user_data: self.user_data.clone(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Component {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let component = ComponentSerde::deserialize(deserializer)?;
+        Ok(Component {
+            alignment: component
+                .alignment
+                .unwrap_or_else(component_alignment_disabled),
+            anchor: component.anchor,
+            anchor_to: component.anchor_to,
+            angle: component.angle,
+            attr: component.attr,
+            locked: component.locked,
+            master_id: component.master_id,
+            orientation: component.orientation,
+            smart_component_location: component.smart_component_location,
+            position: component.position,
+            component_glyph: component.component_glyph,
+            scale: component.scale,
+            slant: component.slant,
+            user_data: component.user_data,
+            alignment_explicit: component.alignment.is_some(),
+        })
+    }
 }
 
 /// Instance definition (`GSInstance`)
