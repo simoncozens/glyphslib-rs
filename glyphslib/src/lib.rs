@@ -429,6 +429,7 @@ impl Font {
 mod tests {
     use super::*;
     use glyphs3::Shape;
+    use openstep_plist::de::Deserializer;
     // use pretty_assertions::assert_eq;
     use rstest::rstest;
     #[rstest]
@@ -464,6 +465,61 @@ mod tests {
             assert_eq!(component.position, (152.0, 0.0));
         }
     }
+
+    #[test]
+    fn test_component_missing_alignment_defaults_to_manual() {
+        let plist = Plist::parse(
+            r#"{
+                pos = (172,0);
+                ref = dotaccentcomb;
+            }"#,
+        )
+        .unwrap();
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let component: glyphs3::Component =
+            serde_path_to_error::deserialize(deserializer).unwrap();
+
+        assert_eq!(component.alignment, -1);
+    }
+
+    #[test]
+    fn test_component_manual_alignment_is_omitted_on_serialize() {
+        let component = glyphs3::Component {
+            component_glyph: "dotaccentcomb".to_string(),
+            position: (172.0, 0.0),
+            alignment: -1,
+            ..Default::default()
+        };
+
+        let serialized = openstep_plist::ser::to_string(&component).unwrap();
+
+        assert!(!serialized.contains("alignment"));
+        assert!(serialized.contains("ref = dotaccentcomb;"));
+        assert!(serialized.contains("pos = (172,0);"));
+    }
+
+    #[test]
+    fn test_component_explicit_manual_alignment_roundtrips() {
+        let plist = Plist::parse(
+            r#"{
+                alignment = -1;
+                pos = (172,0);
+                ref = dotaccentcomb;
+            }"#,
+        )
+        .unwrap();
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let component: glyphs3::Component =
+            serde_path_to_error::deserialize(deserializer).unwrap();
+
+        assert_eq!(component.alignment, -1);
+
+        let serialized = openstep_plist::ser::to_string(&component).unwrap();
+
+        assert!(serialized.contains("alignment = -1;"));
+        assert!(serialized.contains("ref = dotaccentcomb;"));
+    }
+
     use path::PathBuf;
 
     #[rstest]
