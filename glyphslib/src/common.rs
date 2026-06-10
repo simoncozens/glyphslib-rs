@@ -167,3 +167,16 @@ pub struct InstanceFactors(
     )]
     pub Vec<f32>,
 );
+
+/// Smart component property setting (`GSPartProperty`)
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SmartComponentSetting {
+    /// The lower end of the value range of the property.
+    #[serde(default, rename = "bottomValue")]
+    pub bottom_value: i32,
+    /// The upper end of the value range of the property.
+    #[serde(default, rename = "topValue")]
+    pub top_value: i32,
+    /// The name of the property.
+    pub name: String,
+}

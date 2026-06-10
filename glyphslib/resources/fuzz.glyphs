@@ -1,0 +1,487 @@
+{
+.appVersion = "3414";
+DisplayStrings = (
+"",
+"",
+""
+);
+classes = (
+{
+code = "";
+disabled = 1;
+name = 3Ju;
+}
+);
+copyright = dhA;
+customParameters = (
+{
+name = XSNOK;
+value = {
+};
+},
+{
+disabled = 1;
+name = rTSg;
+value = {
+};
+},
+{
+name = S;
+value = {
+};
+},
+{
+name = Axes;
+value = (
+{
+Name = Weight;
+Tag = wght;
+},
+{
+Name = Width;
+Tag = wdth;
+},
+{
+Name = Custom;
+Tag = CUS1;
+},
+{
+Name = Custom2;
+Tag = CUS2;
+},
+{
+Name = Custom3;
+Tag = CUS3;
+},
+{
+Name = Custom4;
+Tag = CUS4;
+}
+);
+}
+);
+designer = "";
+designerURL = Ki7Bk;
+familyName = "Fuzz Test";
+featurePrefixes = (
+{
+automatic = 1;
+code = QA;
+disabled = 1;
+name = 4Kt4;
+},
+{
+code = TLY;
+disabled = 1;
+name = Sgp;
+notes = SW;
+},
+{
+code = QA;
+disabled = 1;
+name = "";
+notes = vV;
+}
+);
+features = (
+{
+automatic = 1;
+code = ltaf;
+disabled = 1;
+tag = F6;
+notes = 0Jz;
+},
+{
+automatic = 1;
+code = nvt5;
+tag = 7OOa;
+},
+{
+code = H4y;
+tag = WS4p;
+},
+{
+automatic = 1;
+code = xxaZ;
+tag = abcd;
+},
+{
+automatic = 1;
+code = 6u;
+tag = f;
+notes = Vki7;
+},
+{
+code = YBcbi;
+tag = bcde;
+notes = PyHB;
+}
+);
+fontMaster = (
+{
+alignmentZones = (
+"{700, 16}",
+"{0, -10}"
+);
+ascender = 897141;
+capHeight = 697549;
+custom = xL;
+customValue = 199563;
+customValue1 = 83831;
+customValue2 = 421759;
+customValue3 = 385958;
+customParameters = (
+{
+disabled = 1;
+name = "";
+value = {
+};
+},
+{
+name = gJ;
+value = {
+};
+},
+{
+disabled = 1;
+name = "";
+value = {
+};
+}
+);
+descender = 0;
+horizontalStems = (
+0,
+0
+);
+iconName = nw;
+id = qmtf;
+italicAngle = 40641;
+verticalStems = (
+0
+);
+weightValue = 961235;
+widthValue = 152528;
+xHeight = 73186;
+},
+{
+ascender = 912720;
+capHeight = 655771;
+custom = lx6;
+customValue1 = 581258;
+customValue2 = 884951;
+descender = 0;
+guideLines = (
+{
+alignment = right;
+name = "2";
+position = "{12, 34}";
+showMeasurement = 1;
+}
+);
+horizontalStems = (
+672124,
+694163
+);
+iconName = 5MQ;
+id = "473";
+italicAngle = 113630;
+verticalStems = (
+322068
+);
+xHeight = 903146;
+}
+);
+glyphs = (
+{
+color = (0,0,1);
+export = 0;
+glyphname = AA;
+layers = (
+{
+anchors = (
+{
+name = UknO;
+position = "{12, 34}";
+}
+);
+annotations = (
+{
+angle = 596054;
+position = "{12, 34}";
+type = Circle;
+width = 257563;
+},
+{
+angle = 537138;
+position = "{12, 34}";
+type = Arrow;
+},
+{
+angle = 547819;
+position = "{12, 34}";
+type = Minus;
+},
+{
+angle = 273872;
+position = "{12, 34}";
+type = Minus;
+},
+{
+angle = 649749;
+position = "{12, 34}";
+type = Minus;
+}
+);
+associatedMasterId = qmtf;
+color = (0,0,1);
+guideLines = (
+{
+alignment = center;
+angle = 306842;
+name = osDl;
+position = "{12, 34}";
+},
+{
+alignment = center;
+lockAngle = 1;
+name = DvT;
+position = "{12, 34}";
+},
+{
+angle = 26893;
+name = KokFN;
+position = "{12, 34}";
+showMeasurement = 1;
+},
+{
+angle = 378889;
+lockAngle = 1;
+name = G;
+position = "{12, 34}";
+},
+{
+angle = 352618;
+locked = 1;
+position = "{12, 34}";
+}
+);
+hints = (
+{
+other1 = "{0, 1}";
+type = Anchor;
+name = vN;
+}
+);
+layerId = LIBy;
+widthMetricsKey = "=2TKri";
+width = 586891;
+},
+{
+annotations = (
+{
+angle = 652736;
+position = "{12, 34}";
+type = Arrow;
+}
+);
+associatedMasterId = qmtf;
+color = (0,0,1);
+layerId = E;
+leftMetricsKey = "=c";
+widthMetricsKey = "=fX5";
+name = F48J;
+width = 196559;
+},
+{
+annotations = (
+{
+angle = 491023;
+position = "{12, 34}";
+type = Circle;
+width = 124203;
+},
+{
+angle = 374123;
+position = "{12, 34}";
+type = Plus;
+},
+{
+angle = 660363;
+position = "{12, 34}";
+type = Arrow;
+}
+);
+associatedMasterId = qmtf;
+components = (
+{
+anchor = bGi;
+locked = 1;
+name = Saw5;
+}
+);
+guideLines = (
+{
+alignment = center;
+angle = 849517;
+lockAngle = 1;
+name = "4";
+position = "{12, 34}";
+}
+);
+layerId = joN7;
+leftMetricsKey = "=ScBJK";
+widthMetricsKey = "=r8Bn";
+rightMetricsKey = "=hzjZv";
+name = gnE;
+width = 12;
+},
+{
+anchors = (
+{
+name = T;
+position = "{12, 34}";
+}
+);
+associatedMasterId = qmtf;
+components = (
+{
+anchor = vo;
+name = 0m1OJ;
+},
+{
+anchor = "";
+locked = 1;
+name = "";
+},
+{
+locked = 1;
+name = aLhsy;
+}
+);
+guideLines = (
+{
+alignment = center;
+angle = 296868;
+locked = 1;
+name = eqSH;
+position = "{12, 34}";
+},
+{
+angle = 596247;
+locked = 1;
+position = "{12, 34}";
+showMeasurement = 1;
+}
+);
+hints = (
+{
+type = Flex;
+options = 2;
+}
+);
+layerId = eh;
+widthMetricsKey = "=rueRn";
+rightMetricsKey = "=Kb";
+width = 3;
+}
+);
+locked = 1;
+note = l;
+topKerningGroup = Rf;
+script = DE9d;
+category = nA;
+partsSettings = (
+{
+name = gxeS;
+bottomValue = 0;
+topValue = 0;
+},
+{
+name = u6;
+bottomValue = 0;
+topValue = 0;
+},
+{
+name = "";
+bottomValue = 0;
+topValue = 0;
+},
+{
+name = nexRV;
+bottomValue = 0;
+topValue = 0;
+},
+{
+name = "";
+bottomValue = 0;
+topValue = 0;
+}
+);
+}
+);
+gridLength = 0;
+instances = (
+{
+exports = 0;
+customParameters = (
+{
+disabled = 1;
+name = 1wAq;
+value = {
+};
+},
+{
+disabled = 1;
+name = 8X;
+value = {
+};
+},
+{
+name = Kuxz;
+value = {
+};
+}
+);
+interpolationWeight = 0.2;
+interpolationWidth = 0.2;
+isBold = 1;
+manualInterpolation = 1;
+name = 24Uy1;
+weightClass = ExtraBold;
+widthClass = "Extra Condensed";
+},
+{
+interpolationCustom = 817051;
+interpolationCustom1 = 223453;
+interpolationCustom2 = 89600;
+interpolationWidth = 545101;
+instanceInterpolations = {
+"473" = 1;
+};
+isItalic = 1;
+linkStyle = 0Fm4t;
+name = abcd;
+weightClass = SemiBold;
+},
+{
+exports = 0;
+interpolationWeight = 0.2;
+interpolationWidth = 0.2;
+instanceInterpolations = {
+qmtf = 1;
+};
+isBold = 1;
+linkStyle = 12Gi;
+name = vgkXC;
+weightClass = Thin;
+}
+);
+keepAlternatesTogether = 1;
+keyboardIncrementBig = 473862;
+manufacturer = W5;
+manufacturerURL = d;
+unitsPerEm = 1;
+versionMajor = 1;
+versionMinor = 1;
+}

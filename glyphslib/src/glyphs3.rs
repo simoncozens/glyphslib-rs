@@ -7,7 +7,7 @@ use serde_with::{serde_as, OneOrMany};
 use crate::{
     common::{
         Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, InstanceFactors, Kerning,
-        NodeType, Orientation, Version,
+        NodeType, Orientation, SmartComponentSetting, Version,
     },
     serde::{
         bool_true, deserialize_export_type, int_to_bool, is_default, is_false, is_scale_unit,
@@ -113,13 +113,6 @@ pub struct Glyphs3 {
     /// The instances of the font.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub instances: Vec<Instance>,
-    /// Whether to keep alternates glyphs together in Font View.
-    #[serde(
-        rename = "keepAlternatesTogether",
-        default,
-        skip_serializing_if = "is_default"
-    )]
-    pub keep_alternates_together: bool,
     /// The left-to-right kerning of the font.
     #[serde(rename = "kerningLTR", default, skip_serializing_if = "is_default")]
     pub kerning: Kerning,
@@ -216,6 +209,9 @@ pub enum MetricType {
     /// Italic angle metric
     #[serde(rename = "italic angle")]
     ItalicAngle,
+    /// Italic slope metric
+    #[serde(rename = "italic slope")]
+    ItalicSlope,
 }
 
 /// Font settings
@@ -256,6 +252,26 @@ pub struct Settings {
         skip_serializing_if = "Option::is_none"
     )]
     pub keyboard_increment_huge: Option<f32>,
+    /// Whether to keep alternates glyphs together in Font View.
+    #[serde(
+        rename = "keepAlternatesTogether",
+        default,
+        skip_serializing_if = "is_default"
+    )]
+    pub keep_alternates_together: bool,
+    /// Whether to preview the effect of the Remove Overlaps filter in Edit View.
+    #[serde(
+        rename = "previewRemoveOverlap",
+        default,
+        skip_serializing_if = "is_default"
+    )]
+    pub preview_remove_overlap: bool,
+    /// Whether snapping is enabled in Edit View.
+    #[serde(rename = "snapToObjects", default, skip_serializing_if = "is_default")]
+    pub snap_to_objects: bool,
+    /// The type of the font.
+    #[serde(rename = "fontType", default, skip_serializing_if = "is_default")]
+    pub font_type: String,
 }
 
 /// Axis definition (`GSAxis`)
@@ -314,6 +330,9 @@ pub struct Master {
     /// The stem values of the master.
     #[serde(rename = "stemValues", default, skip_serializing_if = "Vec::is_empty")]
     pub stem_values: Vec<f32>,
+    /// Auto-save files only: Temporary data associated with the master.
+    #[serde(rename = "tempData", default, skip_serializing_if = "is_default")]
+    pub temp_data: Dictionary,
     /// Custom data associated with the master.
     #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
     pub user_data: Dictionary,
@@ -438,19 +457,6 @@ pub struct Glyph {
     pub user_data: Dictionary,
 }
 
-/// Smart component property setting (`GSPartProperty`)
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct SmartComponentSetting {
-    /// The lower end of the value range of the property.
-    #[serde(default, rename = "bottomValue")]
-    pub bottom_value: i32,
-    /// The upper end of the value range of the property.
-    #[serde(default, rename = "topValue")]
-    pub top_value: i32,
-    /// The name of the property.
-    pub name: String,
-}
-
 /// Layer definition (`GSLayer`)
 ///
 /// We manually serialize this because background layers serialize differently,
@@ -500,6 +506,9 @@ pub struct Layer {
     /// The top metrics key of the layer.
     #[serde(rename = "metricTop", default)]
     pub metric_top: Option<String>,
+    /// The vertical origin metrics key of the layer.
+    #[serde(rename = "metricVertOrigin", default)]
+    pub metric_vert_origin: Option<String>,
     /// The vertical width metrics key of the layer.
     #[serde(
         rename = "metricVertWidth",
@@ -596,12 +605,24 @@ pub struct Guide {
     /// The angle at which the guide is drawn in degrees clockwise.
     #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// The filter of the guide. The syntax is the description of [NSPredicate]
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub filter: String,
+    /// The grid of the guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub grid: f32,
+    /// The length of a line-type guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub length: f32,
     /// Whether the angle of the guide is locked.
     #[serde(default, skip_serializing_if = "is_default", rename = "lockAngle")]
     pub lock_angle: bool,
     /// Whether the guide is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
+    /// The name of the guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub name: String,
     /// The orientation of the guide.
     #[serde(default, skip_serializing_if = "is_default")]
     pub orientation: Orientation,
@@ -694,8 +715,8 @@ pub struct Component {
     /// Custom data associated with the component.
     pub user_data: Dictionary,
 
-    #[allow(dead_code)]
-    pub(crate) alignment_explicit: bool,
+    /// Is there an explicit alignment?
+    pub alignment_explicit: bool,
 }
 
 impl Serialize for Component {
@@ -703,12 +724,12 @@ impl Serialize for Component {
     where
         S: Serializer,
     {
-        let alignment = if self.alignment != component_alignment_disabled() || self.alignment_explicit
-        {
-            Some(self.alignment)
-        } else {
-            None
-        };
+        let alignment =
+            if self.alignment != component_alignment_disabled() || self.alignment_explicit {
+                Some(self.alignment)
+            } else {
+                None
+            };
 
         ComponentSerde {
             alignment,
@@ -838,6 +859,9 @@ pub enum ExportType {
     /// Variable instance
     #[serde(rename = "variable")]
     Variable,
+    /// Icon instance
+    #[serde(rename = "icon")]
+    Icon,
 }
 
 /// Font property (`GSInfoProperty`)
@@ -971,7 +995,7 @@ pub struct Stem {
     #[serde(default, skip_serializing_if = "is_default")]
     pub horizontal: bool,
     /// The name of the stem.
-    name: String,
+    pub name: String,
 }
 
 #[cfg(test)]

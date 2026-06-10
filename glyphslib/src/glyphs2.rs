@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    common::InstanceFactors,
+    common::{InstanceFactors, SmartComponentSetting},
     serde::{
         anything_to_bool, bool_true, deserialize_comma_hexstring, deserialize_commify, is_default,
         is_false, is_scale_unit, is_true, scale_unit, serialize_comma_hexstring, serialize_commify,
@@ -126,6 +126,18 @@ pub struct Glyphs2 {
     /// The standard keyboard increment.
     #[serde(rename = "keyboardIncrement", skip_serializing_if = "Option::is_none")]
     pub keyboard_increment: Option<f32>,
+    /// A bigger keyboard increment.
+    #[serde(
+        rename = "keyboardIncrementBig",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub keyboard_increment_big: Option<f32>,
+    /// A huge keyboard increment.
+    #[serde(
+        rename = "keyboardIncrementHuge",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub keyboard_increment_huge: Option<f32>,
     /// The name of the manufacturer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manufacturer: Option<String>,
@@ -188,6 +200,9 @@ pub struct Master {
     /// The descender metric of the master.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub descender: Option<f32>,
+    /// The global guides of the master.
+    #[serde(rename = "guideLines", default, skip_serializing_if = "Vec::is_empty")]
+    pub guides: Vec<Guide>,
     /// The horizontal stems of the master.
     #[serde(
         default,
@@ -217,7 +232,7 @@ pub struct Master {
     )]
     pub vertical_stems: Vec<i32>,
     /// Whether the master is visible in the preview.
-    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub visible: bool,
     /// The weight name of the master.
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -321,8 +336,8 @@ pub struct Instance {
     /// Whether the instance is an italic. For style linking. Always set to 1, otherwise omit the key.
     #[serde(default, rename = "isItalic", skip_serializing_if = "is_false")]
     pub is_italic: bool,
-    /// The family name that is used when exporting the instance as a static font.
-    #[serde(default, rename = "isRegular")]
+    /// The name of the style-linked instance.
+    #[serde(default, rename = "linkStyle", skip_serializing_if = "Option::is_none")]
     pub link_style: Option<String>,
     /// Whether to use the instanceInterpolations instead of calculating from axis values. Always set to 1, otherwise omit the key.
     #[serde(
@@ -366,16 +381,6 @@ pub struct Glyph {
         rename = "bottomMetricsKey"
     )]
     pub metric_bottom: Option<String>,
-
-    /// The name of the glyph.
-    #[serde(rename = "glyphname")]
-    pub name: String,
-    /// An alternate name for the glyph. Generally omitted when equal to the glyph name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub production: Option<String>,
-    /// The script of the glyph.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub script: Option<String>,
     /// The category of the glyph. Example: `Letter`, `Punctuation`, `Mark`, `Number`, `Separator`, `Symbol`, `Other`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
@@ -385,20 +390,66 @@ pub struct Glyph {
     /// Whether to export the glyph.
     #[serde(default = "bool_true", skip_serializing_if = "is_true")]
     pub export: bool,
-    /// The left kerning group of the glyph.
-    #[serde(rename = "leftKerningGroup", skip_serializing_if = "is_default")]
-    pub kern_left: Option<String>,
-    /// The right kerning group of the glyph.
-    #[serde(rename = "rightKerningGroup", skip_serializing_if = "is_default")]
-    pub kern_right: Option<String>,
-    /// The top kerning group of the glyph.
-    #[serde(rename = "topKerningGroup", skip_serializing_if = "is_default")]
-    pub kern_top: Option<String>,
+    /// The name of the glyph.
+    #[serde(rename = "glyphname")]
+    pub name: String,
     /// The date when the glyph was last modified, including date, time, and timezone. Example: `\"2017-10-31 07:41:24 +0000\"`.
     #[serde(rename = "lastChange", skip_serializing_if = "is_default")]
     pub last_change: Option<String>,
     /// The layers of the glyph.
     pub layers: Vec<Layer>,
+    /// The left kerning group of the glyph.
+    #[serde(rename = "leftKerningGroup", skip_serializing_if = "is_default")]
+    pub kern_left: Option<String>,
+    /// The left metrics key of the glyph.
+    #[serde(default, skip_serializing_if = "is_default", rename = "leftMetricsKey")]
+    pub metric_left: Option<String>,
+    /// Whether the glyph is locked - Possible values: `0`, `"0"`, `1`, `"1"`.
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        deserialize_with = "anything_to_bool"
+    )]
+    pub locked: bool,
+    /// A string serving as a description or comment about the glyph.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub note: String,
+    ///  A list of the Smart Glyph properties and their top/bottom values.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        rename = "partsSettings"
+    )]
+    pub smart_component_settings: Vec<SmartComponentSetting>,
+    /// An alternate name for the glyph. Generally omitted when equal to the glyph name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub production: Option<String>,
+
+    /// The right kerning group of the glyph.
+    #[serde(rename = "rightKerningGroup", skip_serializing_if = "is_default")]
+    pub kern_right: Option<String>,
+    /// The right metrics key of the glyph.
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "rightMetricsKey"
+    )]
+    pub metric_right: Option<String>,
+    /// The script of the glyph.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<String>,
+    /// The subcategory of the glyph.
+    ///
+    /// If unset, then the subcategory is based on a glyph data lookup based on the glyph name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subcategory: Option<String>,
+
+    /// The top kerning group of the glyph.
+    #[serde(rename = "topKerningGroup", skip_serializing_if = "is_default")]
+    pub kern_top: Option<String>,
+    /// The top metrics key of the glyph.
+    #[serde(default, skip_serializing_if = "is_default", rename = "topMetricsKey")]
+    pub metric_top: Option<String>,
 
     /// The Unicode values of the glyph as a comma-separated hexadecimal string. Example: `\"00660069\"` means the glyph represents Unicode codepoints U+0066 (f) and U+0069 (i).
     #[serde(
@@ -409,6 +460,23 @@ pub struct Glyph {
         alias = "unicodes"
     )]
     pub unicode: Vec<u32>,
+    /// Custom data associated with the glyph
+    #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
+    pub user_data: Dictionary,
+    /// The vertical width metrics key of the glyph.
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "vertWidthMetricsKey"
+    )]
+    pub metric_vert_width: Option<String>,
+    /// The width metrics key of the glyph.
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "widthMetricsKey"
+    )]
+    pub metric_width: Option<String>,
 }
 
 /// Layer (`GSLayer`)
@@ -439,12 +507,15 @@ pub struct Layer {
         skip_serializing_if = "Option::is_none"
     )]
     pub background_image: Option<BackgroundImage>,
+    /// The color label of the glyph
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<ColorLabel>,
     /// The components of the layer.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub components: Vec<Component>,
     /// The guides of the layer.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub guidelines: Vec<Guide>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty", rename = "guideLines")]
+    pub guides: Vec<Guide>,
     /// The hints of the layer.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hints: Vec<Hint>,
@@ -554,18 +625,28 @@ pub struct CropRect {
 /// Component (`GSComponent`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Component {
+    /// The alignment of the component.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub alignment: i8,
     /// The anchor that the component is aligned to. Should be indicated if connected to an anchor, especially if more than one possibility is available, e.g. in ligatures.
     #[serde(default, skip_serializing_if = "is_default")]
     pub anchor: Option<String>,
+    /// Whether the component is locked.
+    #[serde(
+        default,
+        skip_serializing_if = "is_false",
+        deserialize_with = "anything_to_bool"
+    )]
+    pub locked: bool,
+    /// The Smart Component settings of the component, mapping property names to values.
+    #[serde(rename = "piece", default, skip_serializing_if = "is_default")]
+    pub smart_component_location: BTreeMap<String, f32>,
     /// The name of the glyph that the component references.
     #[serde(rename = "name")]
     pub component_glyph: String,
     /// The affine transformation matrix applied to the component.
     #[serde(default, skip_serializing_if = "is_default")]
     pub transform: Transform,
-    /// The alignment of the component.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub alignment: i8,
     /// Whether automatic alignment is disabled for the component.
     #[serde(
         default,
@@ -573,21 +654,60 @@ pub struct Component {
         rename = "disableAlignment"
     )]
     pub disable_alignment: bool,
+    /// Custom data associated with the component.
+    #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
+    pub user_data: Dictionary,
 }
 
 /// Guide (`GSGuide`)
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Guide {
     /// The alignment of the guide.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub alignment: Orientation,
     /// The angle of the guide in degrees counter-clockwise.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// The filter of the guide. The syntax is the description of [NSPredicate]
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub filter: String,
+    /// The grid of the guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub grid: f32,
+    /// The length of a line-type guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub length: f32,
+    /// Whether the angle of the guide is locked.
+    #[serde(
+        default,
+        skip_serializing_if = "is_false",
+        deserialize_with = "anything_to_bool",
+        rename = "lockAngle"
+    )]
+    pub lock_angle: bool,
     /// Whether the guide is locked.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "is_false",
+        deserialize_with = "anything_to_bool"
+    )]
     pub locked: bool,
+    /// The name of the guide.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub name: String,
+    /// Whether the measurement of the guide is shown
+    #[serde(
+        default,
+        skip_serializing_if = "is_default",
+        rename = "showMeasurement"
+    )]
+    pub show_measurement: bool,
     /// The position of the guide as an x, y coordinate.
+    #[serde(
+        rename = "position",
+        serialize_with = "serialize_commify",
+        deserialize_with = "deserialize_commify"
+    )]
     pub pos: (f32, f32),
     /// The scale of the guide.
     #[serde(
@@ -597,6 +717,9 @@ pub struct Guide {
         skip_serializing_if = "is_scale_unit"
     )]
     pub scale: (f32, f32),
+    /// Custom data associated with the guide.
+    #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
+    pub user_data: Dictionary,
 }
 
 /// PostScript hint (`GSHint`)
@@ -608,6 +731,9 @@ pub struct Hint {
     /// The type of the hint.
     #[serde(default, rename = "type")]
     pub type_: String,
+    /// The name of the hint.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub name: String,
     /// The origin position of the hint.
     #[serde(
         default,
@@ -692,4 +818,14 @@ pub struct Node {
     pub y: f32,
     /// The type of the node.
     pub node_type: NodeType,
+}
+
+/// Color label (`GSColorLabel`)
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(untagged)]
+pub enum ColorLabel {
+    /// The index of the color label. See also [the handbook entry on color labels](https://handbook.glyphsapp.com/glyph/#glyph/color-label).
+    IntColor(u16),
+    /// An RGB color with an alpha channel in the sRGB IEC61966-2.1 color space.
+    ArrayColor(Color),
 }

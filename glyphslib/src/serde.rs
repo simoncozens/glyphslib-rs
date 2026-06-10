@@ -577,9 +577,9 @@ where
     where
         E: serde::de::Error,
     {
-        let chunks = value
-            .chars()
-            .chunk_by(|&element| element != '{' && element != '}' && element != ',');
+        let chunks = value.chars().chunk_by(|&element| {
+            element != '{' && element != '}' && element != ',' && element != ' '
+        });
         let mut number_groups = chunks
             .into_iter()
             .filter(|(k, _v)| *k)

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     common::Orientation,
     glyphs2,
-    glyphs3::{self, Axis, LocalizedPropertyKey, Metric, MetricType, MetricValue, Property},
+    glyphs3::{self, Axis, LocalizedPropertyKey, Metric, MetricType, MetricValue, Property, Stem},
 };
 
 impl From<glyphs2::Node> for glyphs3::Node {
@@ -24,6 +24,13 @@ impl From<glyphs2::Guide> for glyphs3::Guide {
             locked: val.locked,
             pos: val.pos,
             size: val.scale,
+            filter: val.filter,
+            grid: val.grid,
+            length: val.length,
+            lock_angle: val.lock_angle,
+            name: val.name,
+            show_measurement: val.show_measurement,
+            user_data: Some(val.user_data),
             ..Default::default()
         }
     }
@@ -114,7 +121,7 @@ impl From<glyphs2::Layer> for glyphs3::Layer {
                 .map(|x| Box::new(std::convert::Into::<glyphs3::Layer>::into(*x))),
             background_image: val.background_image.map(Into::into),
             color: None,
-            guides: val.guidelines.into_iter().map(Into::into).collect(),
+            guides: val.guides.into_iter().map(Into::into).collect(),
             hints: vec![], // XXX Todo, one day
             layer_id: val.layer_id,
             metric_bottom: None,
@@ -122,6 +129,7 @@ impl From<glyphs2::Layer> for glyphs3::Layer {
             metric_right: val.metric_right,
             metric_top: None,
             metric_vert_width: None,
+            metric_vert_origin: None,
             metric_width: val.metric_width,
             name: val.name,
             part_selection: BTreeMap::new(), // Maybe Glyphs2 smart component data is stored in user data?
@@ -145,6 +153,9 @@ impl From<glyphs2::Component> for glyphs3::Component {
             position: decomposed.translation,
             component_glyph: val.component_glyph,
             scale: decomposed.scale,
+            locked: val.locked,
+            smart_component_location: val.smart_component_location,
+            user_data: val.user_data,
             ..Default::default()
         }
     }
@@ -172,8 +183,18 @@ impl From<glyphs2::Glyph> for glyphs3::Glyph {
             kern_left: val.kern_left,
             kern_right: val.kern_right,
             kern_top: val.kern_top,
+            kern_bottom: val.kern_bottom,
             last_change: val.last_change,
             layers: val.layers.into_iter().map(Into::into).collect(),
+            metric_bottom: val.metric_bottom,
+            metric_left: val.metric_left,
+            metric_right: val.metric_right,
+            metric_top: val.metric_top,
+            metric_vert_width: val.metric_vert_width,
+            metric_width: val.metric_width,
+            note: val.note,
+            smart_component_settings: val.smart_component_settings.into_iter().collect(),
+            user_data: val.user_data,
             unicode: val.unicode,
             ..Default::default()
         }
@@ -185,6 +206,7 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
         let axes = val.determine_axes();
         let properties = val.glyphs3_properties();
         let metrics = val.glyphs3_metrics();
+        let stems = val.glyphs3_stems();
         let mut font = glyphs3::Glyphs3 {
             app_version: val.app_version,
             format_version: 3,
@@ -199,11 +221,10 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
             masters: val
                 .masters
                 .iter()
-                .map(|x| x.to_glyphs3(&axes, &metrics))
+                .map(|x| x.to_glyphs3(&axes, &metrics, &stems))
                 .collect(),
             glyphs: val.glyphs.into_iter().map(Into::into).collect(),
             instances: val.instances.iter().map(|x| x.to_glyphs3(&axes)).collect(),
-            keep_alternates_together: val.keep_alternates_together,
             kerning: val.kerning,
             kerning_rtl: BTreeMap::new(),
             kerning_vertical: val.kerning_vertical,
@@ -217,10 +238,12 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
                 grid_length: val.grid_length,
                 grid_sub_division: val.grid_sub_division,
                 keyboard_increment: val.keyboard_increment,
-                keyboard_increment_big: None,
-                keyboard_increment_huge: None,
+                keyboard_increment_big: val.keyboard_increment_big,
+                keyboard_increment_huge: val.keyboard_increment_huge,
+                keep_alternates_together: val.keep_alternates_together,
+                ..Default::default()
             },
-            stems: vec![], // XXX
+            stems,
             units_per_em: val.units_per_em,
             user_data: val.user_data,
             version: val.version,
@@ -260,7 +283,7 @@ impl glyphs2::Master {
         }
     }
 
-    fn to_glyphs3(&self, axes: &[Axis], metrics: &[Metric]) -> glyphs3::Master {
+    fn to_glyphs3(&self, axes: &[Axis], metrics: &[Metric], _stems: &[Stem]) -> glyphs3::Master {
         let alignment_to_overshoot: Vec<(f32, f32)> = self
             .alignment_zones
             .iter()
@@ -326,14 +349,21 @@ impl glyphs2::Master {
                 .map(|x| x as f32)
                 .collect(),
             custom_parameters: self.custom_parameters.clone(),
-            guides: vec![],
+            guides: self.guides.iter().cloned().map(Into::into).collect(),
             icon_name: self.icon_name.clone(),
             metric_values,
             name,
             number_values: vec![],
-            properties: vec![],  // XXX - maybe some custom parameters?
-            stem_values: vec![], // XXX
+            properties: vec![], // XXX - maybe some custom parameters?
+            stem_values: self
+                .horizontal_stems
+                .iter()
+                .chain(self.vertical_stems.iter())
+                .copied()
+                .map(|x| x as f32)
+                .collect(),
             visible: self.visible,
+            ..Default::default()
         }
     }
 }
@@ -394,6 +424,12 @@ impl glyphs2::Glyphs2 {
 
     fn glyphs3_properties(&self) -> Vec<Property> {
         let mut properties = vec![];
+        if let Some(copyright) = self.copyright.as_ref() {
+            properties.push(Property::localized_with_default(
+                LocalizedPropertyKey::Copyrights,
+                copyright.clone(),
+            ));
+        }
         if let Some(designer) = self.designer.as_ref() {
             properties.push(Property::localized_with_default(
                 LocalizedPropertyKey::Designers,
@@ -457,6 +493,35 @@ impl glyphs2::Glyphs2 {
             });
         }
         metrics
+    }
+
+    fn glyphs3_stems(&self) -> Vec<glyphs3::Stem> {
+        let mut stems = vec![];
+        let h_count = self
+            .masters
+            .iter()
+            .map(|m| m.horizontal_stems.len())
+            .max()
+            .unwrap_or(0);
+        for i in 0..h_count {
+            stems.push(glyphs3::Stem {
+                horizontal: true,
+                name: format!("H-Stem {}", i + 1),
+            });
+        }
+        let v_count = self
+            .masters
+            .iter()
+            .map(|m| m.vertical_stems.len())
+            .max()
+            .unwrap_or(0);
+        for i in 0..v_count {
+            stems.push(glyphs3::Stem {
+                horizontal: false,
+                name: format!("V-Stem {}", i + 1),
+            });
+        }
+        stems
     }
 }
 

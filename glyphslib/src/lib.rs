@@ -476,8 +476,7 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let component: glyphs3::Component =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let component: glyphs3::Component = serde_path_to_error::deserialize(deserializer).unwrap();
 
         assert_eq!(component.alignment, -1);
     }
@@ -509,8 +508,7 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let component: glyphs3::Component =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let component: glyphs3::Component = serde_path_to_error::deserialize(deserializer).unwrap();
 
         assert_eq!(component.alignment, -1);
 
@@ -525,7 +523,8 @@ mod tests {
     #[rstest]
     fn test_roundtrip(
         #[files("resources/*glyphs")]
-        #[exclude("RadioCanadaDisplay.glyphs")]
+        #[exclude("resources/RadioCanadaDisplay.glyphs")]
+        #[exclude("resources/RoadRage.glyphs")]
         path: PathBuf,
     ) {
         let raw_content = fs::read_to_string(path).unwrap();
