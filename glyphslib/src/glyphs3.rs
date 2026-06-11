@@ -840,14 +840,14 @@ pub struct Instance {
         rename = "weightClass",
         skip_serializing_if = "Option::is_none"
     )]
-    pub weight_class: Option<Plist>, // String or integer
+    pub weight_class: Option<i32>,
     /// The width class of the instance.
     #[serde(
         default,
         rename = "widthClass",
         skip_serializing_if = "Option::is_none"
     )]
-    pub width_class: Option<Plist>,
+    pub width_class: Option<i32>,
 }
 
 /// Instance export type

@@ -556,6 +556,32 @@ impl glyphs2::Instance {
     }
 
     fn to_glyphs3(&self, axes: &[Axis]) -> glyphs3::Instance {
+        let weight_value = match self.weight_class.as_deref() {
+            Some("Thin") => Some(100),
+            Some("ExtraLight") => Some(200),
+            Some("Light") => Some(300),
+            Some("Regular") => Some(400),
+            Some("Medium") => Some(500),
+            Some("SemiBold") => Some(600),
+            Some("Bold") => Some(700),
+            Some("ExtraBold") => Some(800),
+            Some("Black") => Some(900),
+            _ => None,
+        };
+        let width_value = match self.width_class.as_deref() {
+            Some("Ultra Condensed") => Some(1),
+            Some("Extra Condensed") => Some(2),
+            Some("Condensed") => Some(3),
+            Some("Semi Condensed") => Some(4),
+            Some("Regular") => Some(5),
+            Some("Medium") => Some(5),
+            Some("Medium (normal)") => Some(5),
+            Some("Semi Expanded") => Some(6),
+            Some("Expanded") => Some(7),
+            Some("Extra Expanded") => Some(8),
+            Some("Ultra Expanded") => Some(9),
+            _ => None,
+        };
         glyphs3::Instance {
             axes_values: self.axis_values(axes.len()),
             custom_parameters: self.custom_parameters.clone(),
@@ -566,8 +592,8 @@ impl glyphs2::Instance {
             name: self.name.clone(),
             properties: vec![],
             user_data: self.user_data.clone(),
-            weight_class: self.weight_class.clone().map(openstep_plist::Plist::String),
-            width_class: self.width_class.clone().map(openstep_plist::Plist::String),
+            weight_class: weight_value,
+            width_class: width_value,
             ..Default::default()
         }
     }
