@@ -526,7 +526,38 @@ impl glyphs2::Glyphs2 {
 }
 
 impl glyphs2::Instance {
-    fn axis_values(&self, num_axes: usize) -> Vec<f32> {
+    fn axis_values(&self, axes: &[Axis]) -> Vec<f32> {
+        if let Some(cp) = self
+            .custom_parameters
+            .iter()
+            .find(|x| x.name == "Axis Location")
+            .and_then(|x| x.value.as_array())
+        {
+            let location = cp
+                .iter()
+                .flat_map(|x| x.as_dict())
+                .filter_map(|d| {
+                    let name = d.get("Axis")?.as_str()?;
+                    // Sometimes it's a string. :-/
+                    let loc = d.get("Location")?;
+                    if let Some(loc_str) = loc.as_str() {
+                        if let Ok(loc_num) = loc_str.parse::<f32>() {
+                            return Some((name, loc_num));
+                        }
+                    }
+                    let value = loc.as_f64()? as f32;
+                    Some((name, value))
+                })
+                .collect::<BTreeMap<_, _>>();
+            // 0.0 here looks bad. If we have an incomplete location, we should probably
+            // fill it with the default for that axis, but we don't know what the default is yet.
+            let location = axes
+                .iter()
+                .map(|a| location.get(a.name.as_str()).copied().unwrap_or(0.0))
+                .collect::<Vec<_>>();
+            return location;
+        }
+        let num_axes = axes.len();
         match num_axes {
             0 => vec![self.weight_value],
             1 => vec![self.weight_value, self.width_value],
@@ -583,7 +614,7 @@ impl glyphs2::Instance {
             _ => None,
         };
         glyphs3::Instance {
-            axes_values: self.axis_values(axes.len()),
+            axes_values: self.axis_values(axes),
             custom_parameters: self.custom_parameters.clone(),
             exports: self.exports,
             is_bold: self.is_bold,
