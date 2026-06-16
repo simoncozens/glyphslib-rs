@@ -825,7 +825,9 @@ pub struct Node {
 #[serde(untagged)]
 pub enum ColorLabel {
     /// The index of the color label. See also [the handbook entry on color labels](https://handbook.glyphsapp.com/glyph/#glyph/color-label).
-    IntColor(u16),
+    ///
+    /// I don't know what -1 means as a label, but it's valid.
+    IntColor(i16),
     /// An RGB color with an alpha channel in the sRGB IEC61966-2.1 color space.
     ArrayColor(Color),
 }
