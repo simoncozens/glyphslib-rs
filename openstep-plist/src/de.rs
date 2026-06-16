@@ -43,6 +43,31 @@ impl<'de> Deserializer<'de> {
     }
 }
 
+// Serde's number deserializers does *not* accept string values so if we want autoconversion we have to do it ourselves.
+macro_rules! deserialize_number {
+    ($method:ident, $visit:ident, $type: ty, $expected:expr) => {
+        fn $method<V>(self, visitor: V) -> Result<V::Value>
+        where
+            V: Visitor<'de>,
+        {
+            match self.element() {
+                Plist::Integer(i) => visitor.$visit(*i as $type),
+                Plist::Float(f) => visitor.$visit(*f as $type),
+                Plist::String(s) => {
+                    let i: $type = s.parse().map_err(|_| {
+                        de::Error::custom(format!("expected a number, got string {s:?}"))
+                    })?;
+                    visitor.$visit(i)
+                }
+                _ => Err(Error::UnexpectedDataType {
+                    expected: $expected,
+                    found: self.element().name(),
+                }),
+            }
+        }
+    };
+}
+
 impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     type Error = Error;
 
@@ -83,9 +108,46 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         visitor.visit_some(self)
     }
 
-    forward_to_deserialize_any! {i8 i16 i32 u8 u16 u32 u64 f32 char str unit unit_struct}
+    forward_to_deserialize_any! {char str unit unit_struct}
     forward_to_deserialize_any! {bytes}
     forward_to_deserialize_any! {tuple tuple_struct struct identifier ignored_any}
+
+    deserialize_number!(deserialize_i8, visit_i8, i8, "integer or numeric string");
+    deserialize_number!(deserialize_i16, visit_i16, i16, "integer or numeric string");
+    deserialize_number!(deserialize_i32, visit_i32, i32, "integer or numeric string");
+    deserialize_number!(deserialize_i64, visit_i64, i64, "integer or numeric string");
+    deserialize_number!(deserialize_u8, visit_u8, u8, "integer or numeric string");
+    deserialize_number!(deserialize_u16, visit_u16, u16, "integer or numeric string");
+    deserialize_number!(deserialize_u32, visit_u32, u32, "integer or numeric string");
+    deserialize_number!(deserialize_u64, visit_u64, u64, "integer or numeric string");
+    deserialize_number!(
+        deserialize_f32,
+        visit_f32,
+        f32,
+        "float, integer, or numeric string"
+    );
+    deserialize_number!(deserialize_f64, visit_f64, f64, "integer or numeric string");
+
+    // fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
+    // where
+    //     V: Visitor<'de>,
+    // {
+    //     match self.element() {
+    //         Plist::Float(f) => visitor.visit_f32(*f as f32),
+    //         Plist::Integer(i) => visitor.visit_f32(*i as f32),
+    //         Plist::String(s) => {
+    //             let f: f32 = s.parse().map_err(|_| {
+    //                 de::Error::custom(format!("expected a float, got string {s:?}"))
+    //             })?;
+    //             visitor.visit_f32(f)
+    //         }
+    //         _ => Err(Error::UnexpectedDataType {
+    //             expected: "float, integer, or numeric string",
+    //             found: self.element().name(),
+    //         }),
+    //     }
+    // }
+    // i8 i16 i32 u8 u16 u32 u64
 
     fn deserialize_enum<V>(
         self,
@@ -101,32 +163,6 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
                 .visit_enum(de::value::StringDeserializer::new(s.clone()).into_deserializer()),
             _ => Err(Error::UnexpectedDataType {
                 expected: "string",
-                found: self.element().name(),
-            }),
-        }
-    }
-
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        match &self.element() {
-            Plist::Integer(i) => visitor.visit_i64(*i),
-            _ => Err(Error::UnexpectedDataType {
-                expected: "integer",
-                found: self.element().name(),
-            }),
-        }
-    }
-
-    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        match self.element() {
-            Plist::Float(f) => visitor.visit_f64(*f),
-            _ => Err(Error::UnexpectedDataType {
-                expected: "float",
                 found: self.element().name(),
             }),
         }
@@ -404,5 +440,40 @@ mod tests {
                 s: None
             }
         );
+    }
+
+    #[test]
+    fn string_to_f32_autoconvert() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Foo {
+            descender: f32,
+        }
+        let plist = Plist::Dictionary(
+            vec![(
+                SmolStr::new("descender"),
+                Plist::String("-123.45".to_string()),
+            )]
+            .into_iter()
+            .collect(),
+        );
+        let mut deserializer = Deserializer::from_plist(&plist);
+        let value: Foo = Foo::deserialize(&mut deserializer).unwrap();
+        assert_eq!(value, Foo { descender: -123.45 });
+    }
+
+    #[test]
+    fn string_to_integer_autoconvert() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Foo {
+            descender: i32,
+        }
+        let plist = Plist::Dictionary(
+            vec![(SmolStr::new("descender"), Plist::String("-123".to_string()))]
+                .into_iter()
+                .collect(),
+        );
+        let mut deserializer = Deserializer::from_plist(&plist);
+        let value: Foo = Foo::deserialize(&mut deserializer).unwrap();
+        assert_eq!(value, Foo { descender: -123 });
     }
 }
