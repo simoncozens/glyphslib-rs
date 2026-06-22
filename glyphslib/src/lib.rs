@@ -518,6 +518,54 @@ mod tests {
         assert!(serialized.contains("ref = dotaccentcomb;"));
     }
 
+    #[test]
+    fn test_v2_background_image_missing_transform_defaults_to_identity() {
+        // Glyphs.app omits the `transform` key when a background image is at its native position;
+        // glyphsLib defaults it to the identity matrix. Such files must load, not error with
+        // "missing field `transform`".
+        let plist = Plist::parse(
+            r#"{
+                imagePath = "../numerals/2.jpg";
+            }"#,
+        )
+        .unwrap();
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let bg: glyphs2::BackgroundImage =
+            serde_path_to_error::deserialize(deserializer).unwrap();
+
+        assert_eq!(bg.image_path, "../numerals/2.jpg");
+        assert_eq!(bg.transform, glyphs2::Transform::default());
+        // identity, NOT the all-zeros matrix derive(Default) used to give
+        assert_eq!(
+            bg.transform,
+            glyphs2::Transform { m11: 1.0, m12: 0.0, m21: 0.0, m22: 1.0, t_x: 0.0, t_y: 0.0 }
+        );
+    }
+
+    #[test]
+    fn test_v2_background_image_explicit_transform_roundtrips() {
+        let plist = Plist::parse(
+            r#"{
+                imagePath = "../numerals/1.jpg";
+                transform = "{10, 0, 0, 10, -241.369, -238.194}";
+            }"#,
+        )
+        .unwrap();
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let bg: glyphs2::BackgroundImage =
+            serde_path_to_error::deserialize(deserializer).unwrap();
+        assert_eq!(bg.transform.m11, 10.0);
+        assert_eq!(bg.transform.t_x, -241.369);
+
+        // an identity transform is omitted on serialize (matches Glyphs.app)
+        let identity = glyphs2::BackgroundImage {
+            image_path: "x.png".to_string(),
+            ..Default::default()
+        };
+        let serialized = openstep_plist::ser::to_string(&identity).unwrap();
+        assert!(!serialized.contains("transform"));
+    }
+
     use path::PathBuf;
 
     #[rstest]

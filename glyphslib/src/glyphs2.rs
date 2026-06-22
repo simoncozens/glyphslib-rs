@@ -588,12 +588,16 @@ pub struct BackgroundImage {
         deserialize_with = "anything_to_bool"
     )]
     pub locked: bool,
-    /// The affine transformation matrix applied to the background image.
+    /// The affine transformation matrix applied to the background image. Optional: Glyphs.app omits
+    /// this key when the image sits at its native position, in which case it defaults to the identity
+    /// transform (matching glyphsLib). Previously this was a required field, so such files — valid and
+    /// loadable by Glyphs.app/glyphsLib — failed to deserialize with "missing field `transform`".
+    #[serde(default, skip_serializing_if = "is_default")]
     pub transform: Transform,
 }
 
 /// Affine transformation matrix in the form `{m11, m12, m21, m22, tX, tY}`
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
     /// m11 component of the transformation matrix.
     pub m11: f32,
@@ -607,6 +611,15 @@ pub struct Transform {
     pub t_x: f32,
     /// Vertical translation (tY) of the transformation matrix.
     pub t_y: f32,
+}
+
+impl Default for Transform {
+    /// The identity matrix `{1, 0, 0, 1, 0, 0}`, not the all-zeros matrix `derive(Default)` would give.
+    /// Identity is the natural default for an affine transform, and is what Glyphs.app/glyphsLib imply
+    /// when the `transform` key is omitted (e.g. a background image left at its native position).
+    fn default() -> Self {
+        Transform { m11: 1.0, m12: 0.0, m21: 0.0, m22: 1.0, t_x: 0.0, t_y: 0.0 }
+    }
 }
 
 /// Crop rectangle with origin and size
