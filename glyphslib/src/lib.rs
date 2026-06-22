@@ -519,6 +519,30 @@ mod tests {
     }
 
     #[test]
+    fn test_v2_instance_missing_interpolation_defaults_to_100() {
+        // Glyphs 2 omits interpolationWeight/Width when the instance is at the default (100), exactly
+        // like a master omits weightValue/widthValue. They MUST default to the same value (100), or the
+        // instance desyncs from its master (instance at design 0, master at 100) and source
+        // instantiation fails with "No master was present at location Design {wght: 0.0}".
+        let plist = Plist::parse(
+            r#"{
+                name = Thin;
+            }"#,
+        )
+        .unwrap();
+        let deserializer = &mut Deserializer::from_plist(&plist);
+        let inst: glyphs2::Instance = serde_path_to_error::deserialize(deserializer).unwrap();
+        assert_eq!(inst.weight_value, 100.0, "omitted interpolationWeight must default to 100, not 0");
+        assert_eq!(inst.width_value, 100.0, "omitted interpolationWidth must default to 100, not 0");
+
+        // an explicit value is still honoured
+        let plist2 = Plist::parse(r#"{ name = Light; interpolationWeight = 300; }"#).unwrap();
+        let d2 = &mut Deserializer::from_plist(&plist2);
+        let inst2: glyphs2::Instance = serde_path_to_error::deserialize(d2).unwrap();
+        assert_eq!(inst2.weight_value, 300.0);
+    }
+
+    #[test]
     fn test_v2_background_image_missing_transform_defaults_to_identity() {
         // Glyphs.app omits the `transform` key when a background image is at its native position;
         // glyphsLib defaults it to the identity matrix. Such files must load, not error with

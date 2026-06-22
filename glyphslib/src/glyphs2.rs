@@ -17,7 +17,7 @@ use crate::{
         Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, Kerning, NodeType,
         Orientation, Version,
     },
-    serde::{is_one_hundred, one_hundred},
+    serde::{is_one_hundred, is_one_hundred_f32, one_hundred, one_hundred_f32},
 };
 
 /// Glyphs file format version 2 document
@@ -309,17 +309,19 @@ pub struct Instance {
         rename = "interpolationCustom3"
     )]
     pub custom_value_3: f32,
-    /// The first interpolation coefficient of the instance for each master. The order of coefficients follows the order of masters.
+    /// The location of the instance on the weight axis. Defaults to 100 when omitted (matching
+    /// Glyphs.app/glyphsLib and the master `weightValue` default) — NOT f32's 0.0, which would put the
+    /// instance at a design location with no master and break source instantiation.
     #[serde(
-        default,
-        skip_serializing_if = "is_default",
+        default = "one_hundred_f32",
+        skip_serializing_if = "is_one_hundred_f32",
         rename = "interpolationWeight"
     )]
     pub weight_value: f32,
-    /// The second interpolation coefficient of the instance for each master.
+    /// The location of the instance on the width axis. Defaults to 100 when omitted (see above).
     #[serde(
-        default,
-        skip_serializing_if = "is_default",
+        default = "one_hundred_f32",
+        skip_serializing_if = "is_one_hundred_f32",
         rename = "interpolationWidth"
     )]
     pub width_value: f32,
