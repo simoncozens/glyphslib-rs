@@ -543,6 +543,21 @@ mod tests {
     }
 
     #[test]
+    fn test_v2_unquoted_all_digit_hex_unicode() {
+        // Glyphs 2 writes `unicode` as hex; an all-digit value is unquoted, so the
+        // plist reads it as an integer. Its digits are still hex.
+        for (text, expected) in [("2013", 0x2013), ("0041", 0x41), ("00C1", 0xC1)] {
+            let plist = Plist::parse(&format!(
+                "{{ glyphname = g; layers = (); unicode = {text}; }}"
+            ))
+            .unwrap();
+            let deserializer = &mut Deserializer::from_plist(&plist);
+            let glyph: glyphs2::Glyph = serde_path_to_error::deserialize(deserializer).unwrap();
+            assert_eq!(glyph.unicode, vec![expected], "unicode = {text};");
+        }
+    }
+
+    #[test]
     fn test_v2_background_image_missing_transform_defaults_to_identity() {
         // Glyphs.app omits the `transform` key when a background image is at its native position;
         // glyphsLib defaults it to the identity matrix. Such files must load, not error with
