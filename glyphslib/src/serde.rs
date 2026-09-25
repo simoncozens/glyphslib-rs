@@ -48,6 +48,18 @@ pub(crate) fn one_hundred() -> i32 {
     100
 }
 
+/// f32 counterparts for Glyphs 2 instance interpolation coefficients (`interpolationWeight` /
+/// `interpolationWidth`). Glyphs.app/glyphsLib default an omitted interpolation value to 100 — the same
+/// default as a master's `weightValue`/`widthValue` — so an instance must NOT default to f32's 0.0
+/// (which desyncs it from its master and breaks source instantiation: "No master at design 0").
+pub(crate) fn one_hundred_f32() -> f32 {
+    100.0
+}
+
+pub(crate) fn is_one_hundred_f32(value: &f32) -> bool {
+    *value == 100.0
+}
+
 impl<'de> Deserialize<'de> for MetricType {
     fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where
