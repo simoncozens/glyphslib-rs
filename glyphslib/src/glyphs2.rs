@@ -620,7 +620,14 @@ impl Default for Transform {
     /// Identity is the natural default for an affine transform, and is what Glyphs.app/glyphsLib imply
     /// when the `transform` key is omitted (e.g. a background image left at its native position).
     fn default() -> Self {
-        Transform { m11: 1.0, m12: 0.0, m21: 0.0, m22: 1.0, t_x: 0.0, t_y: 0.0 }
+        Transform {
+            m11: 1.0,
+            m12: 0.0,
+            m21: 0.0,
+            m22: 1.0,
+            t_x: 0.0,
+            t_y: 0.0,
+        }
     }
 }
 

@@ -532,8 +532,14 @@ mod tests {
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
         let inst: glyphs2::Instance = serde_path_to_error::deserialize(deserializer).unwrap();
-        assert_eq!(inst.weight_value, 100.0, "omitted interpolationWeight must default to 100, not 0");
-        assert_eq!(inst.width_value, 100.0, "omitted interpolationWidth must default to 100, not 0");
+        assert_eq!(
+            inst.weight_value, 100.0,
+            "omitted interpolationWeight must default to 100, not 0"
+        );
+        assert_eq!(
+            inst.width_value, 100.0,
+            "omitted interpolationWidth must default to 100, not 0"
+        );
 
         // an explicit value is still honoured
         let plist2 = Plist::parse(r#"{ name = Light; interpolationWeight = 300; }"#).unwrap();
@@ -554,15 +560,21 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let bg: glyphs2::BackgroundImage =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let bg: glyphs2::BackgroundImage = serde_path_to_error::deserialize(deserializer).unwrap();
 
         assert_eq!(bg.image_path, "../numerals/2.jpg");
         assert_eq!(bg.transform, glyphs2::Transform::default());
         // identity, NOT the all-zeros matrix derive(Default) used to give
         assert_eq!(
             bg.transform,
-            glyphs2::Transform { m11: 1.0, m12: 0.0, m21: 0.0, m22: 1.0, t_x: 0.0, t_y: 0.0 }
+            glyphs2::Transform {
+                m11: 1.0,
+                m12: 0.0,
+                m21: 0.0,
+                m22: 1.0,
+                t_x: 0.0,
+                t_y: 0.0
+            }
         );
     }
 
@@ -576,8 +588,7 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let bg: glyphs2::BackgroundImage =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let bg: glyphs2::BackgroundImage = serde_path_to_error::deserialize(deserializer).unwrap();
         assert_eq!(bg.transform.m11, 10.0);
         assert_eq!(bg.transform.t_x, -241.369);
 
