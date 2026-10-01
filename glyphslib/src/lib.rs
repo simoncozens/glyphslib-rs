@@ -438,6 +438,7 @@ mod tests {
         if font.as_glyphs2().is_some() {
             let newfont = font.upgrade();
             let outdir = path::Path::new("resources/upgraded/");
+            std::fs::create_dir_all(outdir).unwrap();
             newfont
                 .save(&outdir.join(path.file_name().unwrap()))
                 .unwrap();
