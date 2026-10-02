@@ -402,8 +402,9 @@ impl<'de> Visitor<'de> for CommaHexStringVisitor {
     where
         E: serde::de::Error,
     {
-        // If the value is a single integer - it isn't! It's a hex string
-        let s = format!("{value:04X}");
+        // If the value is a single integer - it isn't! It's a hex string whose
+        // digits happen to all be decimal (`unicode = 2013;` is U+2013)
+        let s = format!("{value}");
 
         Ok(vec![
             u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
@@ -414,8 +415,9 @@ impl<'de> Visitor<'de> for CommaHexStringVisitor {
     where
         E: serde::de::Error,
     {
-        // If the value is a single integer - it isn't! It's a hex string
-        let s = format!("{value:04X}");
+        // If the value is a single integer - it isn't! It's a hex string whose
+        // digits happen to all be decimal (`unicode = 2013;` is U+2013)
+        let s = format!("{value}");
 
         Ok(vec![
             u32::from_str_radix(&s, 16).map_err(serde::de::Error::custom)?
