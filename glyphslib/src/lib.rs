@@ -139,11 +139,19 @@ use openstep_plist::{de::Deserializer, Dictionary};
 
 use utils::user_name_to_file_name;
 
-fn is_glyphs3(plist: &Plist) -> bool {
-    plist
+fn format_version(plist: &Plist) -> u8 {
+    match plist
         .as_dict()
-        .map(|d| d.contains_key(".formatVersion"))
-        .unwrap_or(false)
+        .and_then(|d| d.get(".formatVersion"))
+        .and_then(|v| v.as_i64())
+    {
+        Some(version) => match version {
+            3 => 3,
+            4 => 4,
+            _ => 3,
+        },
+        None => 2,
+    }
 }
 
 /// A font loaded from a Glyphs file, either version 2 or 3
@@ -263,7 +271,9 @@ impl Font {
 
     fn from_plist(plist: Plist) -> Result<Self, Box<dyn std::error::Error>> {
         let deserializer = &mut Deserializer::from_plist(&plist);
-        if is_glyphs3(&plist) {
+        if format_version(&plist) >= 3 {
+            // `Color` needs the file format version while (de)serializing.
+            let _guard = common::with_format_version(format_version(&plist));
             let glyphs3: Glyphs3 = serde_path_to_error::deserialize(deserializer)?;
             Ok(Font::Glyphs3(glyphs3))
         } else {
@@ -329,7 +339,12 @@ impl Font {
     pub fn to_string(&self) -> Result<String, openstep_plist::error::Error> {
         match self {
             Font::Glyphs2(glyphs2) => openstep_plist::ser::to_string(glyphs2),
-            Font::Glyphs3(glyphs3) => openstep_plist::ser::to_string(glyphs3),
+            // Use the format-version field you added to `Glyphs3` here, e.g.
+            // `glyphs3.format_version.into()`.
+            Font::Glyphs3(glyphs3) => {
+                let _guard = common::with_format_version(glyphs3.format_version as u8);
+                openstep_plist::ser::to_string(glyphs3)
+            }
         }
     }
 
@@ -532,8 +547,14 @@ mod tests {
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
         let inst: glyphs2::Instance = serde_path_to_error::deserialize(deserializer).unwrap();
-        assert_eq!(inst.weight_value, 100.0, "omitted interpolationWeight must default to 100, not 0");
-        assert_eq!(inst.width_value, 100.0, "omitted interpolationWidth must default to 100, not 0");
+        assert_eq!(
+            inst.weight_value, 100.0,
+            "omitted interpolationWeight must default to 100, not 0"
+        );
+        assert_eq!(
+            inst.width_value, 100.0,
+            "omitted interpolationWidth must default to 100, not 0"
+        );
 
         // an explicit value is still honoured
         let plist2 = Plist::parse(r#"{ name = Light; interpolationWeight = 300; }"#).unwrap();
@@ -554,15 +575,21 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let bg: glyphs2::BackgroundImage =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let bg: glyphs2::BackgroundImage = serde_path_to_error::deserialize(deserializer).unwrap();
 
         assert_eq!(bg.image_path, "../numerals/2.jpg");
         assert_eq!(bg.transform, glyphs2::Transform::default());
         // identity, NOT the all-zeros matrix derive(Default) used to give
         assert_eq!(
             bg.transform,
-            glyphs2::Transform { m11: 1.0, m12: 0.0, m21: 0.0, m22: 1.0, t_x: 0.0, t_y: 0.0 }
+            glyphs2::Transform {
+                m11: 1.0,
+                m12: 0.0,
+                m21: 0.0,
+                m22: 1.0,
+                t_x: 0.0,
+                t_y: 0.0
+            }
         );
     }
 
@@ -576,8 +603,7 @@ mod tests {
         )
         .unwrap();
         let deserializer = &mut Deserializer::from_plist(&plist);
-        let bg: glyphs2::BackgroundImage =
-            serde_path_to_error::deserialize(deserializer).unwrap();
+        let bg: glyphs2::BackgroundImage = serde_path_to_error::deserialize(deserializer).unwrap();
         assert_eq!(bg.transform.m11, 10.0);
         assert_eq!(bg.transform.t_x, -241.369);
 

@@ -177,7 +177,7 @@ pub struct Metric {
 }
 
 /// Metric type
-#[derive(Serialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetricType {
     /// Ascender metric
     #[serde(rename = "ascender")]
