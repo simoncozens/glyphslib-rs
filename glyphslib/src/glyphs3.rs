@@ -6,8 +6,9 @@ use serde_with::{serde_as, OneOrMany};
 
 use crate::{
     common::{
-        Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, InstanceFactors, Kerning,
-        KerningContext, NodeType, Orientation, SmartComponentSetting, Version,
+        current_format_version, Attributes, Color, CustomParameter, Feature, FeatureClass,
+        FeaturePrefix, InstanceFactors, Kerning, KerningContext, NodeType, Orientation,
+        SmartComponentSetting, Version,
     },
     serde::{
         bool_true, deserialize_export_type, int_to_bool, is_default, is_false, is_one_f32,
@@ -581,9 +582,12 @@ pub struct Layer {
 /// Anchor definition (`GSAnchor`)
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Anchor {
-    /// The attributes of the anchor. Starting in version 4, this also holds the user data; before that, `userData` is a key of its own.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub attr: Dictionary,
+    /// The attributes and user data of the anchor.
+    ///
+    /// Glyphs 4 stores these under the `attr` key; Glyphs 3 stores the user data
+    /// under `userData`. They are exposed here as a single dictionary.
+    #[serde(flatten)]
+    pub attr: Attributes,
     /// Whether the anchor is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
@@ -595,9 +599,6 @@ pub struct Anchor {
     #[serde(default, skip_serializing_if = "is_default")]
     /// The position of the anchor.
     pub pos: (f32, f32),
-    /// Custom data associated with the anchor.
-    #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
-    pub user_data: Option<Dictionary>,
 }
 
 /// Background image (`GSImage`)
@@ -653,9 +654,12 @@ pub struct Guide {
     /// The angle at which the guide is drawn in degrees clockwise.
     #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
-    /// The attributes of the guide. Starting in version 4, this also holds the user data; before that, `userData` is a key of its own.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub attr: Dictionary,
+    /// The attributes and user data of the guide.
+    ///
+    /// Glyphs 4 stores these under the `attr` key; Glyphs 3 stores the user data
+    /// under `userData`. They are exposed here as a single dictionary.
+    #[serde(flatten)]
+    pub attr: Attributes,
     /// The filter of the guide. The syntax is the description of [NSPredicate]
     #[serde(default, skip_serializing_if = "is_default")]
     pub filter: String,
@@ -696,9 +700,6 @@ pub struct Guide {
     /// The type of the guide
     #[serde(default, skip_serializing_if = "is_default", rename = "type")]
     pub guide_type: GuideType,
-    /// Custom data associated with the guide.
-    #[serde(default, rename = "userData", skip_serializing_if = "Option::is_none")]
-    pub user_data: Option<Dictionary>,
 }
 
 /// Shape - either a path or a component
@@ -833,12 +834,22 @@ impl Serialize for Component {
                 None
             };
 
+        // In version 4 the component's user data is folded into `attr`; earlier
+        // versions keep it in a `userData` key of its own.
+        let (attr, user_data) = if current_format_version() >= 4 {
+            let mut attr = self.attr.clone();
+            attr.extend(self.user_data.clone());
+            (attr, Dictionary::default())
+        } else {
+            (self.attr.clone(), self.user_data.clone())
+        };
+
         ComponentSerde {
             alignment,
             anchor: self.anchor.clone(),
             anchor_to: self.anchor_to.clone(),
             angle: self.angle,
-            attr: self.attr.clone(),
+            attr,
             locked: self.locked,
             master_id: self.master_id.clone(),
             orientation: self.orientation,
@@ -848,7 +859,7 @@ impl Serialize for Component {
             scale: self.scale,
             slant: self.slant,
             traverse_anchors: self.traverse_anchors,
-            user_data: self.user_data.clone(),
+            user_data,
         }
         .serialize(serializer)
     }
@@ -1141,6 +1152,9 @@ mod tests {
         assert!(guide.show_measurement);
         assert_eq!(guide.size, (300.0, 400.0));
         assert_eq!(guide.guide_type, GuideType::Line);
-        assert!(guide.user_data.is_some());
+        assert_eq!(
+            guide.attr.get("customKey").and_then(|v| v.as_str()),
+            Some("customValue")
+        );
     }
 }

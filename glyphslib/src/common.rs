@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::serde::{deserialize_commify, is_default, serialize_commify};
-use openstep_plist::Plist;
+use openstep_plist::{Dictionary, Plist};
 use serde::de::{self, SeqAccess, Visitor};
-use serde::ser::SerializeTuple as _;
+use serde::ser::{SerializeMap as _, SerializeTuple as _};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The OpenType layout classes of the font (`GSClass`)
@@ -262,6 +262,110 @@ impl<'de> Visitor<'de> for ColorVisitor {
 enum ColorElement {
     Marker(String),
     Number(f64),
+}
+
+/// A dictionary of the arbitrary attributes stored on an object.
+///
+/// Glyphs 4 stores these under the `attr` key (folding in the object's user
+/// data); Glyphs 3 and earlier store that user data under `userData`. Both are
+/// exposed here as a single dictionary, which is (de)serialized under the key
+/// matching the active file format version. Intended for use with
+/// `#[serde(flatten)]`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Attributes {
+    /// The underlying attribute dictionary.
+    pub dict: Dictionary,
+}
+
+impl Attributes {
+    /// Returns the underlying dictionary.
+    pub fn as_dict(&self) -> &Dictionary {
+        &self.dict
+    }
+
+    /// Returns the underlying dictionary mutably.
+    pub fn as_dict_mut(&mut self) -> &mut Dictionary {
+        &mut self.dict
+    }
+}
+
+impl From<Dictionary> for Attributes {
+    fn from(dict: Dictionary) -> Self {
+        Attributes { dict }
+    }
+}
+
+impl std::ops::Deref for Attributes {
+    type Target = Dictionary;
+
+    fn deref(&self) -> &Self::Target {
+        &self.dict
+    }
+}
+
+impl std::ops::DerefMut for Attributes {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.dict
+    }
+}
+
+impl Serialize for Attributes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Empty dictionaries are omitted from the file.
+        let key = if current_format_version() >= 4 {
+            "attr"
+        } else {
+            "userData"
+        };
+        let entries = usize::from(!self.dict.is_empty());
+        let mut map = serializer.serialize_map(Some(entries))?;
+        if entries == 1 {
+            map.serialize_entry(key, &self.dict)?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Attributes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(AttributesVisitor)
+    }
+}
+
+struct AttributesVisitor;
+
+impl<'de> Visitor<'de> for AttributesVisitor {
+    type Value = Attributes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a dictionary of attributes")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        let mut dict = Dictionary::new();
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                // The version 4 key, and the earlier user-data key. Both are
+                // folded into a single dictionary.
+                "attr" | "userData" => {
+                    dict.extend(map.next_value::<Dictionary>()?);
+                }
+                _ => {
+                    let _ = map.next_value::<Plist>()?;
+                }
+            }
+        }
+        Ok(Attributes { dict })
+    }
 }
 
 /// Kerning definition mapping master IDs to kerning definitions, which map glyph names or class names to kerning partners.

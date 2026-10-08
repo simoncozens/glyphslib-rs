@@ -34,7 +34,7 @@ impl From<glyphs2::Guide> for glyphs3::Guide {
             lock_angle: val.lock_angle,
             name: val.name,
             show_measurement: val.show_measurement,
-            user_data: Some(val.user_data),
+            attr: val.user_data.into(),
             ..Default::default()
         }
     }
@@ -46,7 +46,6 @@ impl From<glyphs2::Anchor> for glyphs3::Anchor {
             name: val.name,
             locked: false,
             orientation: Orientation::Left,
-            user_data: None,
             attr: Default::default(),
         }
     }

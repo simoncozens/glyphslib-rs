@@ -634,6 +634,76 @@ mod tests {
     }
 
     #[test]
+    fn test_anchor_attr_is_renamed_by_version() {
+        // Glyphs 3 stores the user data under `userData`; both keys load into the
+        // single `attr` field.
+        let plist = Plist::parse(r#"{ name = top; userData = { foo = bar; }; }"#).unwrap();
+        let anchor: glyphs3::Anchor = {
+            let _guard = crate::common::with_format_version(3);
+            let d = &mut Deserializer::from_plist(&plist);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+        assert_eq!(anchor.attr.get("foo").and_then(|v| v.as_str()), Some("bar"));
+
+        // ... and it also reads the Glyphs 4 `attr` key.
+        let plist4 = Plist::parse(r#"{ name = top; attr = { foo = bar; }; }"#).unwrap();
+        let anchor4: glyphs3::Anchor = {
+            let _guard = crate::common::with_format_version(4);
+            let d = &mut Deserializer::from_plist(&plist4);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+        assert_eq!(
+            anchor4.attr.get("foo").and_then(|v| v.as_str()),
+            Some("bar")
+        );
+
+        // v3 output uses `userData`; v4 output uses `attr`.
+        let v3 = {
+            let _guard = crate::common::with_format_version(3);
+            openstep_plist::ser::to_string(&anchor).unwrap()
+        };
+        assert!(v3.contains("userData"), "got {v3}");
+        assert!(!v3.contains("attr"), "got {v3}");
+
+        let v4 = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&anchor).unwrap()
+        };
+        assert!(v4.contains("attr"), "got {v4}");
+        assert!(!v4.contains("userData"), "got {v4}");
+    }
+
+    #[test]
+    fn test_component_user_data_folds_into_attr_for_v4() {
+        let plist =
+            Plist::parse(r#"{ ref = A; attr = { fill = 1; }; userData = { foo = bar; }; }"#)
+                .unwrap();
+        let component: glyphs3::Component = {
+            let _guard = crate::common::with_format_version(3);
+            let d = &mut Deserializer::from_plist(&plist);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+
+        // v3 keeps the attribute dict and the user data separate.
+        let v3 = {
+            let _guard = crate::common::with_format_version(3);
+            openstep_plist::ser::to_string(&component).unwrap()
+        };
+        assert!(v3.contains("attr"), "got {v3}");
+        assert!(v3.contains("userData"), "got {v3}");
+
+        // v4 folds the user data into `attr`.
+        let v4 = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&component).unwrap()
+        };
+        assert!(v4.contains("attr"), "got {v4}");
+        assert!(v4.contains("fill"), "got {v4}");
+        assert!(v4.contains("foo"), "got {v4}");
+        assert!(!v4.contains("userData"), "got {v4}");
+    }
+
+    #[test]
     fn test_v4_node_attr_is_split_into_user_data_and_hoi() {
         // In v4 the fourth tuple element is a `nodeAttr` object holding `hoi`
         // and `userData`; both should surface as separate fields.
