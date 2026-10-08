@@ -3,6 +3,7 @@
 use itertools::Itertools;
 use std::fmt;
 
+use openstep_plist::{Dictionary, Plist};
 use serde::{
     de::Visitor,
     ser::{SerializeSeq, SerializeStruct, SerializeTuple},
@@ -11,7 +12,7 @@ use serde::{
 use serde_with::SerializeAs;
 
 use crate::{
-    common::NodeType,
+    common::{current_format_version, NodeType, Orientation},
     glyphs2::{self, AlignmentZone, CropRect},
     glyphs3::{self, MetricType},
 };
@@ -46,6 +47,14 @@ pub(crate) fn is_one_hundred(value: &i32) -> bool {
 
 pub(crate) fn one_hundred() -> i32 {
     100
+}
+
+pub(crate) fn one_f32() -> f32 {
+    1.0
+}
+
+pub(crate) fn is_one_f32(value: &f32) -> bool {
+    *value == 1.0
 }
 
 /// f32 counterparts for Glyphs 2 instance interpolation coefficients (`interpolationWeight` /
@@ -104,17 +113,63 @@ impl<'de> Visitor<'de> for SimpleNodeVisitor {
         let y = seq
             .next_element()?
             .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-        let node_type = seq
+        let node_type_str: String = seq
             .next_element()?
             .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-        let user_data = seq.next_element()?;
+        let (node_type, flags) = NodeType::split_token(&node_type_str).ok_or_else(|| {
+            serde::de::Error::custom(format!("unknown node type: {node_type_str}"))
+        })?;
+
+        // The optional fourth element is the node's `userData` in version 3 and a
+        // `nodeAttr` object in version 4.
+        let (user_data, hoi) = split_node_attr(seq.next_element()?);
+
         Ok(glyphs3::Node {
             x,
             y,
             node_type,
+            locked: flags.contains('X'),
+            tangent: flags.contains('t'),
+            orientation: if flags.contains('C') {
+                Orientation::Center
+            } else if flags.contains('R') {
+                Orientation::Right
+            } else {
+                Orientation::Left
+            },
             user_data,
+            hoi,
         })
     }
+}
+
+/// Splits the optional fourth node element into its `userData` and `hoi` parts.
+///
+/// In version 3 the element is a bare `userData` dictionary; in version 4 it is a
+/// `nodeAttr` dictionary holding `hoi` and `userData` keys. This keeps
+/// [`glyphs3::Node::user_data`] behaving the same in both versions.
+fn split_node_attr(attr: Option<Dictionary>) -> (Option<Dictionary>, Option<Dictionary>) {
+    match attr {
+        None => (None, None),
+        Some(mut attr) if current_format_version() >= 4 => {
+            let hoi = attr.remove("hoi").and_then(|p| p.expect_dict().ok());
+            let user_data = attr.remove("userData").and_then(|p| p.expect_dict().ok());
+            (user_data, hoi)
+        }
+        Some(attr) => (Some(attr), None),
+    }
+}
+
+/// Folds `user_data` and `hoi` back into a version 4 `nodeAttr` dictionary.
+fn build_node_attr(user_data: &Option<Dictionary>, hoi: &Option<Dictionary>) -> Dictionary {
+    let mut attr = Dictionary::new();
+    if let Some(hoi) = hoi {
+        attr.insert("hoi".into(), Plist::Dictionary(hoi.clone()));
+    }
+    if let Some(user_data) = user_data {
+        attr.insert("userData".into(), Plist::Dictionary(user_data.clone()));
+    }
+    attr
 }
 
 impl<'de> Deserialize<'de> for glyphs3::Node {
@@ -134,8 +189,29 @@ impl Serialize for glyphs3::Node {
         let mut seq = serializer.serialize_tuple(3)?;
         seq.serialize_element(&self.x)?;
         seq.serialize_element(&self.y)?;
-        seq.serialize_element(&self.node_type)?;
-        if let Some(user_data) = &self.user_data {
+
+        let mut flags = self.node_type.as_str().to_string();
+        if self.tangent {
+            flags.push('t');
+        }
+        match self.orientation {
+            Orientation::Left => {}
+            Orientation::Center => flags.push('C'),
+            Orientation::Right => flags.push('R'),
+        }
+        if self.locked {
+            flags.push('X');
+        }
+        seq.serialize_element(&flags)?;
+
+        if current_format_version() >= 4 {
+            // Version 4 stores both parts together in a `nodeAttr` object.
+            let node_attr = build_node_attr(&self.user_data, &self.hoi);
+            if !node_attr.is_empty() {
+                seq.serialize_element(&node_attr)?;
+            }
+        } else if let Some(user_data) = &self.user_data {
+            // Version 3 stores the user data on its own.
             seq.serialize_element(user_data)?;
         }
         seq.end()
@@ -156,6 +232,12 @@ impl Serialize for glyphs2::Node {
             NodeType::LineSmooth => "LINE SMOOTH",
             NodeType::CurveSmooth => "CURVE SMOOTH",
             NodeType::QCurveSmooth => "QCURVE SMOOTH",
+            // Other node types cannot be serialized as g2
+            _ => {
+                return Err(serde::ser::Error::custom(
+                    "unsupported node type for glyphs2",
+                ))
+            }
         };
         let node_str = format!("{} {} {}", self.x, self.y, node_type);
         let mut seq = serializer.serialize_seq(None)?;
@@ -217,8 +299,11 @@ impl Serialize for glyphs3::Layer {
     where
         S: Serializer,
     {
-        let fields = 24; // Nobody's actually counting.
+        let fields = 25; // Nobody's actually counting.
         let mut seq = serializer.serialize_struct("Layer", fields)?;
+        if !self.active {
+            seq.serialize_field("active", &self.active)?;
+        }
         if !self.anchors.is_empty() {
             seq.serialize_field("anchors", &self.anchors)?;
         }

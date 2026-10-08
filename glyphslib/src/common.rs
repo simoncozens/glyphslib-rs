@@ -90,8 +90,9 @@ pub struct StylisticSetLabel {
     pub value: String,
 }
 
-/// File format versions that change how [`Color`] is encoded: v3 uses `0...255`
-/// integers, v4 uses normalized `0...1` floats and adds palette references.
+// File format versions that change how [`Color`] is encoded (v3 uses `0...255`
+// integers, v4 uses normalized `0...1` floats and adds palette references) as well
+// as how [`Node`] is serialized.
 thread_local! {
     static FORMAT_VERSION: Cell<Option<u8>> = const { Cell::new(None) };
 }
@@ -122,7 +123,7 @@ impl Drop for FormatVersionGuard {
     }
 }
 
-fn current_format_version() -> u8 {
+pub(crate) fn current_format_version() -> u8 {
     FORMAT_VERSION
         .with(Cell::get)
         .unwrap_or(DEFAULT_FORMAT_VERSION)
@@ -266,6 +267,9 @@ enum ColorElement {
 /// Kerning definition mapping master IDs to kerning definitions, which map glyph names or class names to kerning partners.
 pub type Kerning = BTreeMap<String, BTreeMap<String, BTreeMap<String, f32>>>;
 
+/// Context kerning definition mapping kerning contexts to master IDs and their kerning values.
+pub type KerningContext = BTreeMap<String, BTreeMap<String, f32>>;
+
 /// Guide alignment (`GSElementOrientation`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Copy)]
 pub enum Orientation {
@@ -305,6 +309,74 @@ pub enum NodeType {
     /// QCurve smooth node
     #[serde(rename = "qs")]
     QCurveSmooth,
+    /// Quartic curve
+    #[serde(rename = "u")]
+    Quartic,
+    /// Quartic smooth curve
+    #[serde(rename = "us")]
+    QuarticSmooth,
+    /// Hobby curve
+    #[serde(rename = "h")]
+    Hobby,
+    /// Hobby smooth curve
+    #[serde(rename = "hs")]
+    HobbySmooth,
+    /// Raph New Spiral curve
+    #[serde(rename = "r")]
+    RaphNewSpiral,
+    /// Raph New Spiral smooth curve
+    #[serde(rename = "rs")]
+    RaphNewSpiralSmooth,
+}
+
+impl NodeType {
+    /// The token used to represent this node type in the Glyphs file format,
+    /// including the smooth (`s`) suffix where applicable.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NodeType::Line => "l",
+            NodeType::Curve => "c",
+            NodeType::QCurve => "q",
+            NodeType::OffCurve => "o",
+            NodeType::LineSmooth => "ls",
+            NodeType::CurveSmooth => "cs",
+            NodeType::QCurveSmooth => "qs",
+            NodeType::Quartic => "u",
+            NodeType::QuarticSmooth => "us",
+            NodeType::Hobby => "h",
+            NodeType::HobbySmooth => "hs",
+            NodeType::RaphNewSpiral => "r",
+            NodeType::RaphNewSpiralSmooth => "rs",
+        }
+    }
+
+    /// Splits a node configuration token into its node type and the trailing
+    /// flag characters (tangent `t`, orientation `R`/`C`, locking `X`).
+    ///
+    /// Returns `None` if the token does not start with a known node type.
+    pub fn split_token(token: &str) -> Option<(Self, &str)> {
+        // The two-character (smooth) tokens must be tried before their
+        // one-character counterparts, so that e.g. `cs` is not read as `c`
+        // followed by an unknown flag.
+        const TOKENS: &[(&str, NodeType)] = &[
+            ("ls", NodeType::LineSmooth),
+            ("cs", NodeType::CurveSmooth),
+            ("qs", NodeType::QCurveSmooth),
+            ("us", NodeType::QuarticSmooth),
+            ("hs", NodeType::HobbySmooth),
+            ("rs", NodeType::RaphNewSpiralSmooth),
+            ("l", NodeType::Line),
+            ("c", NodeType::Curve),
+            ("q", NodeType::QCurve),
+            ("o", NodeType::OffCurve),
+            ("u", NodeType::Quartic),
+            ("h", NodeType::Hobby),
+            ("r", NodeType::RaphNewSpiral),
+        ];
+        TOKENS.iter().find_map(|(token_str, node_type)| {
+            token.strip_prefix(token_str).map(|rest| (*node_type, rest))
+        })
+    }
 }
 
 /// Version information

@@ -12,7 +12,11 @@ impl From<glyphs2::Node> for glyphs3::Node {
             x: val.x,
             y: val.y,
             node_type: val.node_type,
+            tangent: false,
+            locked: false,
+            orientation: Orientation::Left,
             user_data: None,
+            hoi: None,
         }
     }
 }
@@ -43,6 +47,7 @@ impl From<glyphs2::Anchor> for glyphs3::Anchor {
             locked: false,
             orientation: Orientation::Left,
             user_data: None,
+            attr: Default::default(),
         }
     }
 }
@@ -56,6 +61,10 @@ impl From<glyphs2::BackgroundImage> for glyphs3::BackgroundImage {
             locked: val.locked,
             scale: decomposed.scale,
             pos: decomposed.translation,
+            alpha: 1.0,
+            attr: Default::default(),
+            image_url: Default::default(),
+            slant: (0.0, 0.0),
         }
     }
 }
@@ -112,6 +121,7 @@ impl From<glyphs2::Layer> for glyphs3::Layer {
             )
             .collect();
         glyphs3::Layer {
+            active: true,
             anchors: val.anchors.into_iter().map(Into::into).collect(),
             annotations: val.annotations,
             associated_master_id: val.associated_master_id,
@@ -228,6 +238,7 @@ impl From<glyphs2::Glyphs2> for glyphs3::Glyphs3 {
             kerning: val.kerning,
             kerning_rtl: BTreeMap::new(),
             kerning_vertical: val.kerning_vertical,
+            kerning_context: Default::default(),
             metrics,
             note: "".to_string(),
             numbers: vec![],
@@ -342,6 +353,7 @@ impl glyphs2::Master {
         glyphs3::Master {
             id: self.id.clone(),
             user_data: self.user_data.clone(),
+            active: true,
             axes_values: self
                 .axis_values(axes.len())
                 .iter()
@@ -388,6 +400,7 @@ impl glyphs2::Glyphs2 {
                             .unwrap_or_default()
                             .to_string(),
                         hidden: d.contains_key("Hidden"),
+                        ..Default::default()
                     })
                     .collect::<Vec<_>>();
                 return axes;
@@ -405,6 +418,7 @@ impl glyphs2::Glyphs2 {
                 name: "Weight".to_string(),
                 tag: "wght".to_string(),
                 hidden: false,
+                ..Default::default()
             });
         }
         let width_values: Vec<i32> = self.masters.iter().map(|x| x.width_value).collect();
@@ -417,6 +431,7 @@ impl glyphs2::Glyphs2 {
                 name: "Width".to_string(),
                 tag: "wdth".to_string(),
                 hidden: false,
+                ..Default::default()
             });
         }
         axes
