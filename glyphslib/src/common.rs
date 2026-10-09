@@ -1,8 +1,12 @@
+use std::cell::Cell;
 use std::collections::BTreeMap;
+use std::fmt;
 
 use crate::serde::{deserialize_commify, is_default, serialize_commify};
-use openstep_plist::Plist;
-use serde::{Deserialize, Serialize};
+use openstep_plist::{Dictionary, Plist};
+use serde::de::{self, SeqAccess, Visitor};
+use serde::ser::{SerializeMap as _, SerializeTuple as _};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The OpenType layout classes of the font (`GSClass`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
@@ -86,6 +90,45 @@ pub struct StylisticSetLabel {
     pub value: String,
 }
 
+// File format versions that change how [`Color`] is encoded (v3 uses `0...255`
+// integers, v4 uses normalized `0...1` floats and adds palette references) as well
+// as how [`Node`] is serialized.
+thread_local! {
+    static FORMAT_VERSION: Cell<Option<u8>> = const { Cell::new(None) };
+}
+
+/// Fallback used when [`current_format_version`] is called outside a scoped
+/// load/save (shouldn't happen in practice). Matches `FormatVersion::default()`.
+const DEFAULT_FORMAT_VERSION: u8 = 3;
+
+/// Sets the format version for the current thread and restores the previous value
+/// on drop, so the setting is cleared even if the load/save panics.
+///
+/// ```ignore
+/// let _guard = with_format_version(4);
+/// openstep_plist::ser::to_string(glyphs3)
+/// ```
+#[must_use = "the guard restores the previous version when dropped"]
+pub fn with_format_version(version: u8) -> FormatVersionGuard {
+    let previous = FORMAT_VERSION.with(|cell| cell.replace(Some(version)));
+    FormatVersionGuard(previous)
+}
+
+/// Restores the previous format version when dropped. See [`with_format_version`].
+pub struct FormatVersionGuard(Option<u8>);
+
+impl Drop for FormatVersionGuard {
+    fn drop(&mut self) {
+        FORMAT_VERSION.with(|cell| cell.set(self.0));
+    }
+}
+
+pub(crate) fn current_format_version() -> u8 {
+    FORMAT_VERSION
+        .with(Cell::get)
+        .unwrap_or(DEFAULT_FORMAT_VERSION)
+}
+
 /// Color representation
 ///
 /// Can be:
@@ -93,17 +136,243 @@ pub struct StylisticSetLabel {
 /// - A gray color with an alpha channel in a perceptual generic gray color space with γ = 2.2 (2 components)
 /// - A CMYK color with an alpha channel, device-dependent color space (5 components)
 /// - An integer index of the color label
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(untagged)]
+/// - An index and alpha channel into the font's Color Palettes custom parameter (V4)
+///
+/// Tuples are stored normalized to `0...1`. They are scaled to `0...255`
+/// integers when the active format version is below 4.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Color {
     /// The index of the color label.
     ColorInt(u8),
     /// Color tuple (RGB, Gray, or CMYK with alpha channel)
-    ColorTuple(Vec<u8>),
+    ColorTuple(Vec<f64>),
+    /// A color from a color palette
+    ColorPaletteIndex {
+        /// The index of the color in the palette.
+        index: u16,
+        /// The alpha channel of the color.
+        alpha: f64,
+    },
+}
+
+impl Serialize for Color {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Color::ColorInt(index) => serializer.serialize_u8(*index),
+            Color::ColorPaletteIndex { index, alpha } => {
+                let mut tuple = serializer.serialize_tuple(3)?;
+                tuple.serialize_element("p")?;
+                tuple.serialize_element(index)?;
+                tuple.serialize_element(alpha)?;
+                tuple.end()
+            }
+            Color::ColorTuple(components) => {
+                let mut tuple = serializer.serialize_tuple(components.len())?;
+                if current_format_version() >= 4 {
+                    for component in components {
+                        tuple.serialize_element(component)?;
+                    }
+                } else {
+                    for component in components {
+                        let scaled = (component * 255.0).round() as u8;
+                        tuple.serialize_element(&scaled)?;
+                    }
+                }
+                tuple.end()
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(ColorVisitor)
+    }
+}
+
+struct ColorVisitor;
+
+impl<'de> Visitor<'de> for ColorVisitor {
+    type Value = Color;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter
+            .write_str("a color label index, a list of color components, or a palette reference")
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Color::ColorInt(value as u8))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(Color::ColorInt(value as u8))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        match seq.next_element::<ColorElement>()? {
+            // Version 4 palette reference: ("p", index, alpha).
+            Some(ColorElement::Marker(marker)) => {
+                if marker != "p" {
+                    return Err(de::Error::unknown_variant(&marker, &["p"]));
+                }
+                let index = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let alpha = seq.next_element()?.unwrap_or(1.0);
+                Ok(Color::ColorPaletteIndex { index, alpha })
+            }
+            // A list of color components.
+            Some(ColorElement::Number(first)) => {
+                let mut components = vec![first];
+                while let Some(component) = seq.next_element()? {
+                    components.push(component);
+                }
+                if current_format_version() < 4 {
+                    // Version 3 components are `0...255`; normalize to `0...1`.
+                    for component in &mut components {
+                        *component /= 255.0;
+                    }
+                }
+                Ok(Color::ColorTuple(components))
+            }
+            None => Ok(Color::ColorTuple(Vec::new())),
+        }
+    }
+}
+
+/// First element of a `Color` array: either the `"p"` palette marker or a
+/// numeric color component.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ColorElement {
+    Marker(String),
+    Number(f64),
+}
+
+/// A dictionary of the arbitrary attributes stored on an object.
+///
+/// Glyphs 4 stores these under the `attr` key (folding in the object's user
+/// data); Glyphs 3 and earlier store that user data under `userData`. Both are
+/// exposed here as a single dictionary, which is (de)serialized under the key
+/// matching the active file format version. Intended for use with
+/// `#[serde(flatten)]`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Attributes {
+    /// The underlying attribute dictionary.
+    pub dict: Dictionary,
+}
+
+impl Attributes {
+    /// Returns the underlying dictionary.
+    pub fn as_dict(&self) -> &Dictionary {
+        &self.dict
+    }
+
+    /// Returns the underlying dictionary mutably.
+    pub fn as_dict_mut(&mut self) -> &mut Dictionary {
+        &mut self.dict
+    }
+}
+
+impl From<Dictionary> for Attributes {
+    fn from(dict: Dictionary) -> Self {
+        Attributes { dict }
+    }
+}
+
+impl std::ops::Deref for Attributes {
+    type Target = Dictionary;
+
+    fn deref(&self) -> &Self::Target {
+        &self.dict
+    }
+}
+
+impl std::ops::DerefMut for Attributes {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.dict
+    }
+}
+
+impl Serialize for Attributes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Empty dictionaries are omitted from the file.
+        let key = if current_format_version() >= 4 {
+            "attr"
+        } else {
+            "userData"
+        };
+        let entries = usize::from(!self.dict.is_empty());
+        let mut map = serializer.serialize_map(Some(entries))?;
+        if entries == 1 {
+            map.serialize_entry(key, &self.dict)?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Attributes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(AttributesVisitor)
+    }
+}
+
+struct AttributesVisitor;
+
+impl<'de> Visitor<'de> for AttributesVisitor {
+    type Value = Attributes;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a dictionary of attributes")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        let mut dict = Dictionary::new();
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                // The version 4 key, and the earlier user-data key. Both are
+                // folded into a single dictionary.
+                "attr" | "userData" => {
+                    dict.extend(map.next_value::<Dictionary>()?);
+                }
+                _ => {
+                    let _ = map.next_value::<Plist>()?;
+                }
+            }
+        }
+        Ok(Attributes { dict })
+    }
 }
 
 /// Kerning definition mapping master IDs to kerning definitions, which map glyph names or class names to kerning partners.
 pub type Kerning = BTreeMap<String, BTreeMap<String, BTreeMap<String, f32>>>;
+
+/// Context kerning definition mapping kerning contexts to master IDs and their kerning values.
+pub type KerningContext = BTreeMap<String, BTreeMap<String, f32>>;
 
 /// Guide alignment (`GSElementOrientation`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq, Copy)]
@@ -144,6 +413,74 @@ pub enum NodeType {
     /// QCurve smooth node
     #[serde(rename = "qs")]
     QCurveSmooth,
+    /// Quartic curve
+    #[serde(rename = "u")]
+    Quartic,
+    /// Quartic smooth curve
+    #[serde(rename = "us")]
+    QuarticSmooth,
+    /// Hobby curve
+    #[serde(rename = "h")]
+    Hobby,
+    /// Hobby smooth curve
+    #[serde(rename = "hs")]
+    HobbySmooth,
+    /// Raph New Spiral curve
+    #[serde(rename = "r")]
+    RaphNewSpiral,
+    /// Raph New Spiral smooth curve
+    #[serde(rename = "rs")]
+    RaphNewSpiralSmooth,
+}
+
+impl NodeType {
+    /// The token used to represent this node type in the Glyphs file format,
+    /// including the smooth (`s`) suffix where applicable.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NodeType::Line => "l",
+            NodeType::Curve => "c",
+            NodeType::QCurve => "q",
+            NodeType::OffCurve => "o",
+            NodeType::LineSmooth => "ls",
+            NodeType::CurveSmooth => "cs",
+            NodeType::QCurveSmooth => "qs",
+            NodeType::Quartic => "u",
+            NodeType::QuarticSmooth => "us",
+            NodeType::Hobby => "h",
+            NodeType::HobbySmooth => "hs",
+            NodeType::RaphNewSpiral => "r",
+            NodeType::RaphNewSpiralSmooth => "rs",
+        }
+    }
+
+    /// Splits a node configuration token into its node type and the trailing
+    /// flag characters (tangent `t`, orientation `R`/`C`, locking `X`).
+    ///
+    /// Returns `None` if the token does not start with a known node type.
+    pub fn split_token(token: &str) -> Option<(Self, &str)> {
+        // The two-character (smooth) tokens must be tried before their
+        // one-character counterparts, so that e.g. `cs` is not read as `c`
+        // followed by an unknown flag.
+        const TOKENS: &[(&str, NodeType)] = &[
+            ("ls", NodeType::LineSmooth),
+            ("cs", NodeType::CurveSmooth),
+            ("qs", NodeType::QCurveSmooth),
+            ("us", NodeType::QuarticSmooth),
+            ("hs", NodeType::HobbySmooth),
+            ("rs", NodeType::RaphNewSpiralSmooth),
+            ("l", NodeType::Line),
+            ("c", NodeType::Curve),
+            ("q", NodeType::QCurve),
+            ("o", NodeType::OffCurve),
+            ("u", NodeType::Quartic),
+            ("h", NodeType::Hobby),
+            ("r", NodeType::RaphNewSpiral),
+        ];
+        TOKENS.iter().find_map(|(token_str, node_type)| {
+            token.strip_prefix(token_str).map(|rest| (*node_type, rest))
+        })
+    }
 }
 
 /// Version information

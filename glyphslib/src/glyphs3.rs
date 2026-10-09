@@ -6,12 +6,13 @@ use serde_with::{serde_as, OneOrMany};
 
 use crate::{
     common::{
-        Color, CustomParameter, Feature, FeatureClass, FeaturePrefix, InstanceFactors, Kerning,
-        NodeType, Orientation, SmartComponentSetting, Version,
+        current_format_version, Attributes, Color, CustomParameter, Feature, FeatureClass,
+        FeaturePrefix, InstanceFactors, Kerning, KerningContext, NodeType, Orientation,
+        SmartComponentSetting, Version,
     },
     serde::{
-        bool_true, deserialize_export_type, int_to_bool, is_default, is_false, is_scale_unit,
-        is_true, scale_unit, SerializeAsTuple,
+        bool_true, deserialize_export_type, int_to_bool, is_default, is_false, is_one_f32,
+        is_scale_unit, is_true, one_f32, scale_unit, SerializeAsTuple,
     },
 };
 
@@ -41,7 +42,7 @@ struct ComponentSerde {
         deserialize_with = "int_to_bool"
     )]
     locked: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "masterId")]
     master_id: Option<String>,
     #[serde(default, skip_serializing_if = "is_default")]
     orientation: Orientation,
@@ -55,6 +56,13 @@ struct ComponentSerde {
     scale: (f32, f32),
     #[serde(default, skip_serializing_if = "is_default")]
     slant: (f32, f32),
+    #[serde(
+        default = "bool_true",
+        rename = "traverseAnchors",
+        skip_serializing_if = "is_true",
+        deserialize_with = "int_to_bool"
+    )]
+    traverse_anchors: bool,
     #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
     user_data: Dictionary,
 }
@@ -126,6 +134,9 @@ pub struct Glyphs3 {
         skip_serializing_if = "is_default"
     )]
     pub kerning_vertical: Kerning,
+    /// The context kerning of the font. Maps kerning contexts to master IDs and their kerning values.
+    #[serde(rename = "kerningContext", default, skip_serializing_if = "is_default")]
+    pub kerning_context: KerningContext,
     /// The metrics of the font.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<Metric>,
@@ -177,7 +188,7 @@ pub struct Metric {
 }
 
 /// Metric type
-#[derive(Serialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetricType {
     /// Ascender metric
     #[serde(rename = "ascender")]
@@ -217,6 +228,9 @@ pub enum MetricType {
 /// Font settings
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Settings {
+    /// Maps dependency class names to dependency display names.
+    #[serde(rename = "dependencies", default, skip_serializing_if = "is_default")]
+    pub dependencies: BTreeMap<String, String>,
     /// Whether automatic alignment of components is disabled.
     #[serde(
         rename = "disablesAutomaticAlignment",
@@ -282,13 +296,22 @@ pub struct Axis {
     pub hidden: bool,
     /// The user-facing name of the axis.
     pub name: String,
+    /// The user-facing, localized name of the axis.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<LocalizedValue>,
     /// The OpenType tag of the axis. Must be unique within the font.
     pub tag: String,
+    /// Custom data associated with the axis.
+    #[serde(rename = "userData", default, skip_serializing_if = "is_default")]
+    pub user_data: Dictionary,
 }
 
 /// Font master (`GSFontMaster`)
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Master {
+    /// Whether the master is active.
+    #[serde(default = "bool_true", skip_serializing_if = "is_true")]
+    pub active: bool,
     /// The designspace location of the master.
     #[serde(rename = "axesValues", default, skip_serializing_if = "Vec::is_empty")]
     pub axes_values: Vec<f32>,
@@ -360,6 +383,9 @@ pub struct Glyph {
     #[serde(rename = "kernBottom", skip_serializing_if = "Option::is_none")]
     pub kern_bottom: Option<String>,
 
+    /// The Smart Glyph variation axes of the glyph.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub axes: Vec<Axis>,
     /// The case of the glyph. If unset, then the case is based on a glyph data lookup based on the glyph name.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub case: String,
@@ -378,6 +404,12 @@ pub struct Glyph {
     /// The name of the glyph.
     #[serde(rename = "glyphname")]
     pub name: String,
+    /// The glyph group name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// The index of the glyph within its group.
+    #[serde(rename = "groupIdx", default, skip_serializing_if = "is_default")]
+    pub group_idx: i32,
     /// The kerning group of the left side of the glyph.
     #[serde(rename = "kernLeft", skip_serializing_if = "Option::is_none")]
     pub kern_left: Option<String>,
@@ -463,6 +495,9 @@ pub struct Glyph {
 /// and I don't want to have a separate BackgroundLayer struct.
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Layer {
+    /// Whether the layer is active.
+    #[serde(default = "bool_true")]
+    pub active: bool,
     /// The anchors of the layer.
     #[serde(default)]
     pub anchors: Vec<Anchor>,
@@ -548,6 +583,12 @@ pub struct Layer {
 /// Anchor definition (`GSAnchor`)
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Anchor {
+    /// The attributes and user data of the anchor.
+    ///
+    /// Glyphs 4 stores these under the `attr` key; Glyphs 3 stores the user data
+    /// under `userData`. They are exposed here as a single dictionary.
+    #[serde(flatten)]
+    pub attr: Attributes,
     /// Whether the anchor is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
@@ -559,23 +600,29 @@ pub struct Anchor {
     #[serde(default, skip_serializing_if = "is_default")]
     /// The position of the anchor.
     pub pos: (f32, f32),
-    /// Custom data associated with the anchor.
-    #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
-    pub user_data: Option<Dictionary>,
 }
 
 /// Background image (`GSImage`)
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BackgroundImage {
+    /// The alpha value of the image.
+    #[serde(default = "one_f32", skip_serializing_if = "is_one_f32")]
+    pub alpha: f32,
     /// The rotation angle of the image in degrees clockwise.
     #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// The attributes of the image
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub attr: Dictionary,
     /// The cropped frame of the image, specified as the crop origin X/Y and size width/height.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub crop: Option<(f32, f32, f32, f32)>,
     /// The file path of the image file relative to the document file.
     #[serde(rename = "imagePath")]
     pub image_path: String,
+    /// The URL bookmark data of the image file path.
+    #[serde(default, rename = "imageURL", skip_serializing_if = "is_default")]
+    pub image_url: String,
     /// Whether the image is locked.
     #[serde(default, skip_serializing_if = "is_default")]
     pub locked: bool,
@@ -585,6 +632,9 @@ pub struct BackgroundImage {
     /// The scale factor of the image.
     #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
     pub scale: (f32, f32),
+    /// The slant of the image.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub slant: (f32, f32),
 }
 
 /// Guide type (`GSGuideType`)
@@ -605,6 +655,12 @@ pub struct Guide {
     /// The angle at which the guide is drawn in degrees clockwise.
     #[serde(default, skip_serializing_if = "is_default")]
     pub angle: f32,
+    /// The attributes and user data of the guide.
+    ///
+    /// Glyphs 4 stores these under the `attr` key; Glyphs 3 stores the user data
+    /// under `userData`. They are exposed here as a single dictionary.
+    #[serde(flatten)]
+    pub attr: Attributes,
     /// The filter of the guide. The syntax is the description of [NSPredicate]
     #[serde(default, skip_serializing_if = "is_default")]
     pub filter: String,
@@ -639,12 +695,12 @@ pub struct Guide {
     /// The size of the guide.
     #[serde(default = "scale_unit", skip_serializing_if = "is_scale_unit")]
     pub size: (f32, f32),
+    /// Whether the guide has a slope.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub slope: bool,
     /// The type of the guide
     #[serde(default, skip_serializing_if = "is_default", rename = "type")]
     pub guide_type: GuideType,
-    /// Custom data associated with the guide.
-    #[serde(default, rename = "userData", skip_serializing_if = "Option::is_none")]
-    pub user_data: Option<Dictionary>,
 }
 
 /// Shape - either a path or a component
@@ -655,6 +711,21 @@ pub enum Shape {
     Component(Component),
     /// Outline path
     Path(Path),
+    /// An image
+    Image(BackgroundImage),
+    /// A shape group (Glyphs 4 only)
+    ShapeGroup(ShapeGroup),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+/// A group of shapes within a glyph (Glyphs 4 only).
+pub struct ShapeGroup {
+    /// The attributes of the shape group.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub attr: Dictionary,
+    /// The group ID
+    #[serde(rename = "groupId")]
+    pub group_id: String,
 }
 
 /// Path definition (`GSPath`)
@@ -679,12 +750,20 @@ pub struct Node {
     pub y: f32,
     /// The type of the node.
     pub node_type: NodeType,
+    /// Is this node a tangent connection? (v4)
+    pub tangent: bool,
+    /// Is this node locked? (v4)
+    pub locked: bool,
+    /// The orientation of the node (v4)
+    pub orientation: Orientation,
     /// Custom data associated with the node.
     pub user_data: Option<Dictionary>,
+    /// v4 Higher Order Interpolation attributes.
+    pub hoi: Option<Dictionary>,
 }
 
 /// Component reference (`GSComponent`)
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Component {
     /// Controls the automatic alignment of the component. `-1`: disabled (no alignment), `0`: default (alignment is based on context), `1`: force alignment (align regardless of context), `3`: horizontal alignment (align horizontally, but allow for manual vertical placement).
     pub alignment: i8,
@@ -717,6 +796,31 @@ pub struct Component {
 
     /// Is there an explicit alignment?
     pub alignment_explicit: bool,
+    /// Whether the component should traverse anchors.
+    pub traverse_anchors: bool,
+}
+
+impl Default for Component {
+    fn default() -> Self {
+        Component {
+            alignment: 0,
+            anchor: None,
+            anchor_to: None,
+            angle: 0.0,
+            attr: Dictionary::default(),
+            locked: false,
+            master_id: None,
+            orientation: Orientation::default(),
+            smart_component_location: BTreeMap::new(),
+            position: (0.0, 0.0),
+            component_glyph: String::new(),
+            scale: (0.0, 0.0),
+            slant: (0.0, 0.0),
+            user_data: Dictionary::default(),
+            alignment_explicit: false,
+            traverse_anchors: true,
+        }
+    }
 }
 
 impl Serialize for Component {
@@ -731,12 +835,22 @@ impl Serialize for Component {
                 None
             };
 
+        // In version 4 the component's user data is folded into `attr`; earlier
+        // versions keep it in a `userData` key of its own.
+        let (attr, user_data) = if current_format_version() >= 4 {
+            let mut attr = self.attr.clone();
+            attr.extend(self.user_data.clone());
+            (attr, Dictionary::default())
+        } else {
+            (self.attr.clone(), self.user_data.clone())
+        };
+
         ComponentSerde {
             alignment,
             anchor: self.anchor.clone(),
             anchor_to: self.anchor_to.clone(),
             angle: self.angle,
-            attr: self.attr.clone(),
+            attr,
             locked: self.locked,
             master_id: self.master_id.clone(),
             orientation: self.orientation,
@@ -745,7 +859,8 @@ impl Serialize for Component {
             component_glyph: self.component_glyph.clone(),
             scale: self.scale,
             slant: self.slant,
-            user_data: self.user_data.clone(),
+            traverse_anchors: self.traverse_anchors,
+            user_data,
         }
         .serialize(serializer)
     }
@@ -775,6 +890,7 @@ impl<'de> Deserialize<'de> for Component {
             slant: component.slant,
             user_data: component.user_data,
             alignment_explicit: component.alignment.is_some(),
+            traverse_anchors: component.traverse_anchors,
         })
     }
 }
@@ -795,6 +911,9 @@ pub struct Instance {
     /// Whether the instance is exported.
     #[serde(default = "bool_true", skip_serializing_if = "is_true")]
     pub exports: bool,
+    /// The unique ID of the instance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// The interpolation factors where the keys are the master IDs.
     #[serde(
         default,
@@ -854,7 +973,7 @@ pub struct Instance {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
 pub enum ExportType {
     /// Static instance
-    #[default]
+    #[serde(rename = "static")]
     Static,
     /// Variable instance
     #[serde(rename = "variable")]
@@ -862,6 +981,13 @@ pub enum ExportType {
     /// Icon instance
     #[serde(rename = "icon")]
     Icon,
+    /// Single
+    #[default]
+    #[serde(rename = "single")]
+    Single,
+    /// Particles
+    #[serde(rename = "particles")]
+    Particles,
 }
 
 /// Font property (`GSInfoProperty`)
@@ -1034,6 +1160,9 @@ mod tests {
         assert!(guide.show_measurement);
         assert_eq!(guide.size, (300.0, 400.0));
         assert_eq!(guide.guide_type, GuideType::Line);
-        assert!(guide.user_data.is_some());
+        assert_eq!(
+            guide.attr.get("customKey").and_then(|v| v.as_str()),
+            Some("customValue")
+        );
     }
 }

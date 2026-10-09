@@ -137,13 +137,83 @@ use glyphs3::Glyphs3;
 pub use openstep_plist::Plist;
 use openstep_plist::{de::Deserializer, Dictionary};
 
+use crate::common::{Feature, FeatureClass, FeaturePrefix};
 use utils::user_name_to_file_name;
 
-fn is_glyphs3(plist: &Plist) -> bool {
-    plist
+/// Adds the feature prefixes, classes and features stored as `features/*.fea`
+/// files in a Glyphs 4 package to the loaded font.
+///
+/// File names follow the package naming rules: prefixes are prefixed with `_`,
+/// classes with `@`, and features use their tag. A trailing `.2`, `.3`, ...
+/// deduplication suffix is stripped.
+fn load_package_features(entries: &HashMap<String, String>, font: &mut Glyphs3) {
+    let mut files: Vec<(&str, &str)> = entries
+        .iter()
+        .filter_map(|(path, contents)| {
+            let file_name = path.strip_prefix("features/")?;
+            if file_name.contains('/') || !file_name.ends_with(".fea") {
+                return None;
+            }
+            Some((file_name, contents.as_str()))
+        })
+        .collect();
+    files.sort_by(|a, b| a.0.cmp(b.0));
+
+    for (file_name, code) in files {
+        let stem = strip_feature_file_suffix(file_name.trim_end_matches(".fea"));
+        if let Some(name) = stem.strip_prefix('_') {
+            font.feature_prefixes.push(FeaturePrefix {
+                automatic: false,
+                code: code.to_string(),
+                disabled: false,
+                name: name.to_string(),
+                notes: None,
+            });
+        } else if let Some(name) = stem.strip_prefix('@') {
+            font.classes.push(FeatureClass {
+                automatic: false,
+                code: code.to_string(),
+                disabled: false,
+                name: name.to_string(),
+                notes: None,
+            });
+        } else {
+            font.features.push(Feature {
+                automatic: false,
+                code: code.to_string(),
+                disabled: false,
+                labels: Vec::new(),
+                notes: None,
+                tag: stem.to_string(),
+            });
+        }
+    }
+}
+
+/// Strips a trailing `.2`, `.3`, ... deduplication suffix from a feature file
+/// stem (see the Glyphs package file naming rules).
+fn strip_feature_file_suffix(stem: &str) -> &str {
+    if let Some((base, suffix)) = stem.rsplit_once('.') {
+        if !base.is_empty() && suffix.chars().all(|c| c.is_ascii_digit()) {
+            return base;
+        }
+    }
+    stem
+}
+
+fn format_version(plist: &Plist) -> u8 {
+    match plist
         .as_dict()
-        .map(|d| d.contains_key(".formatVersion"))
-        .unwrap_or(false)
+        .and_then(|d| d.get(".formatVersion"))
+        .and_then(|v| v.as_i64())
+    {
+        Some(version) => match version {
+            3 => 3,
+            4 => 4,
+            _ => 3,
+        },
+        None => 2,
+    }
 }
 
 /// A font loaded from a Glyphs file, either version 2 or 3
@@ -186,6 +256,9 @@ impl Font {
     /// - `order.plist`
     /// - `UIState.plist` (optional)
     /// - `glyphs/<glyph-file-name>.glyph`
+    /// - `kerning.plist` (optional)
+    /// - `note.md` (optional)
+    /// - `features/<feature-file-name>.fea` (optional)
     pub fn load_package_entries(
         entries: &HashMap<String, String>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -223,6 +296,19 @@ impl Font {
             );
         }
 
+        // In a package the kerning dictionaries live in their own file; merge
+        // them into the top level dictionary.
+        if let Some(kerning_content) = normalized_entries.get("kerning.plist") {
+            for (key, value) in Plist::parse(kerning_content)?.expect_dict()? {
+                toplevel.insert(key, value);
+            }
+        }
+
+        // The font note is stored as Markdown in its own file.
+        if let Some(note) = normalized_entries.get("note.md") {
+            toplevel.insert("note".into(), Plist::String(note.clone()));
+        }
+
         let glyph_order_plist = normalized_entries
             .get("order.plist")
             .ok_or("Missing order.plist in glyphspackage entries")?;
@@ -240,7 +326,11 @@ impl Font {
         }
 
         toplevel.insert("glyphs".into(), Plist::Array(glyphs));
-        Self::from_plist(Plist::Dictionary(toplevel))
+        let mut font = Self::from_plist(Plist::Dictionary(toplevel))?;
+        if let Font::Glyphs3(glyphs3) = &mut font {
+            load_package_features(&normalized_entries, glyphs3);
+        }
+        Ok(font)
     }
 
     /// Load a Glyphs file from a string
@@ -263,7 +353,9 @@ impl Font {
 
     fn from_plist(plist: Plist) -> Result<Self, Box<dyn std::error::Error>> {
         let deserializer = &mut Deserializer::from_plist(&plist);
-        if is_glyphs3(&plist) {
+        if format_version(&plist) >= 3 {
+            // `Color` needs the file format version while (de)serializing.
+            let _guard = common::with_format_version(format_version(&plist));
             let glyphs3: Glyphs3 = serde_path_to_error::deserialize(deserializer)?;
             Ok(Font::Glyphs3(glyphs3))
         } else {
@@ -329,7 +421,12 @@ impl Font {
     pub fn to_string(&self) -> Result<String, openstep_plist::error::Error> {
         match self {
             Font::Glyphs2(glyphs2) => openstep_plist::ser::to_string(glyphs2),
-            Font::Glyphs3(glyphs3) => openstep_plist::ser::to_string(glyphs3),
+            // Use the format-version field you added to `Glyphs3` here, e.g.
+            // `glyphs3.format_version.into()`.
+            Font::Glyphs3(glyphs3) => {
+                let _guard = common::with_format_version(glyphs3.format_version as u8);
+                openstep_plist::ser::to_string(glyphs3)
+            }
         }
     }
 
@@ -369,6 +466,24 @@ impl Font {
                         format!("glyphs/{}.glyph", user_name_to_file_name(name)),
                         glyph_content,
                     );
+                }
+            }
+        }
+
+        if let Ok(kerning) = fs::read_to_string(glyphs_file.join("kerning.plist")) {
+            entries.insert("kerning.plist".to_string(), kerning);
+        }
+        if let Ok(note) = fs::read_to_string(glyphs_file.join("note.md")) {
+            entries.insert("note.md".to_string(), note);
+        }
+        if let Ok(feature_dir) = fs::read_dir(glyphs_file.join("features")) {
+            for feature in feature_dir.flatten() {
+                if let Some(file_name) = feature.file_name().to_str() {
+                    if file_name.ends_with(".fea") {
+                        if let Ok(contents) = fs::read_to_string(feature.path()) {
+                            entries.insert(format!("features/{file_name}"), contents);
+                        }
+                    }
                 }
             }
         }
@@ -517,6 +632,268 @@ mod tests {
 
         assert!(serialized.contains("alignment = -1;"));
         assert!(serialized.contains("ref = dotaccentcomb;"));
+    }
+
+    #[test]
+    fn test_anchor_attr_is_renamed_by_version() {
+        // Glyphs 3 stores the user data under `userData`; both keys load into the
+        // single `attr` field.
+        let plist = Plist::parse(r#"{ name = top; userData = { foo = bar; }; }"#).unwrap();
+        let anchor: glyphs3::Anchor = {
+            let _guard = crate::common::with_format_version(3);
+            let d = &mut Deserializer::from_plist(&plist);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+        assert_eq!(anchor.attr.get("foo").and_then(|v| v.as_str()), Some("bar"));
+
+        // ... and it also reads the Glyphs 4 `attr` key.
+        let plist4 = Plist::parse(r#"{ name = top; attr = { foo = bar; }; }"#).unwrap();
+        let anchor4: glyphs3::Anchor = {
+            let _guard = crate::common::with_format_version(4);
+            let d = &mut Deserializer::from_plist(&plist4);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+        assert_eq!(
+            anchor4.attr.get("foo").and_then(|v| v.as_str()),
+            Some("bar")
+        );
+
+        // v3 output uses `userData`; v4 output uses `attr`.
+        let v3 = {
+            let _guard = crate::common::with_format_version(3);
+            openstep_plist::ser::to_string(&anchor).unwrap()
+        };
+        assert!(v3.contains("userData"), "got {v3}");
+        assert!(!v3.contains("attr"), "got {v3}");
+
+        let v4 = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&anchor).unwrap()
+        };
+        assert!(v4.contains("attr"), "got {v4}");
+        assert!(!v4.contains("userData"), "got {v4}");
+    }
+
+    #[test]
+    fn test_component_user_data_folds_into_attr_for_v4() {
+        let plist =
+            Plist::parse(r#"{ ref = A; attr = { fill = 1; }; userData = { foo = bar; }; }"#)
+                .unwrap();
+        let component: glyphs3::Component = {
+            let _guard = crate::common::with_format_version(3);
+            let d = &mut Deserializer::from_plist(&plist);
+            serde_path_to_error::deserialize(d).unwrap()
+        };
+
+        // v3 keeps the attribute dict and the user data separate.
+        let v3 = {
+            let _guard = crate::common::with_format_version(3);
+            openstep_plist::ser::to_string(&component).unwrap()
+        };
+        assert!(v3.contains("attr"), "got {v3}");
+        assert!(v3.contains("userData"), "got {v3}");
+
+        // v4 folds the user data into `attr`.
+        let v4 = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&component).unwrap()
+        };
+        assert!(v4.contains("attr"), "got {v4}");
+        assert!(v4.contains("fill"), "got {v4}");
+        assert!(v4.contains("foo"), "got {v4}");
+        assert!(!v4.contains("userData"), "got {v4}");
+    }
+
+    #[test]
+    fn test_v4_node_attr_is_split_into_user_data_and_hoi() {
+        // In v4 the fourth tuple element is a `nodeAttr` object holding `hoi`
+        // and `userData`; both should surface as separate fields.
+        let plist = Plist::parse(
+            r#"(100, 200, "c", { hoi = { wght = { ip = (10, 20); }; }; userData = { foo = bar; }; })"#,
+        )
+        .unwrap();
+        let _guard = crate::common::with_format_version(4);
+        let d = &mut Deserializer::from_plist(&plist);
+        let node: glyphs3::Node = serde_path_to_error::deserialize(d).unwrap();
+
+        assert_eq!(
+            node.user_data
+                .as_ref()
+                .and_then(|d| d.get("foo"))
+                .and_then(|p| p.as_str()),
+            Some("bar")
+        );
+        assert!(node.hoi.as_ref().unwrap().contains_key("wght"));
+
+        // v4 recombines both parts back into a single `nodeAttr` object.
+        let serialized = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&node).unwrap()
+        };
+        assert!(serialized.contains("hoi"));
+        assert!(serialized.contains("userData"));
+
+        // v3 writes the user data on its own and drops `hoi`.
+        let serialized3 = {
+            let _guard = crate::common::with_format_version(3);
+            openstep_plist::ser::to_string(&node).unwrap()
+        };
+        assert!(serialized3.contains("foo = bar;"));
+        assert!(!serialized3.contains("hoi"));
+    }
+
+    #[test]
+    fn test_v3_node_attr_is_user_data() {
+        // In v3 the fourth element is a bare `userData` dictionary.
+        let plist = Plist::parse(r#"(100, 200, "c", { foo = bar; })"#).unwrap();
+        let _guard = crate::common::with_format_version(3);
+        let d = &mut Deserializer::from_plist(&plist);
+        let node: glyphs3::Node = serde_path_to_error::deserialize(d).unwrap();
+
+        assert_eq!(
+            node.user_data
+                .as_ref()
+                .and_then(|d| d.get("foo"))
+                .and_then(|p| p.as_str()),
+            Some("bar")
+        );
+        assert!(node.hoi.is_none());
+    }
+
+    #[test]
+    fn test_node_type_and_flags_roundtrip() {
+        use crate::common::{NodeType, Orientation};
+
+        let plist = Plist::parse(r#"(1, 2, "cstCX", {})"#).unwrap();
+        let _guard = crate::common::with_format_version(4);
+        let d = &mut Deserializer::from_plist(&plist);
+        let node: glyphs3::Node = serde_path_to_error::deserialize(d).unwrap();
+
+        assert_eq!(node.node_type, NodeType::CurveSmooth);
+        assert!(node.tangent, "`t` should set tangent");
+        assert_eq!(
+            node.orientation,
+            Orientation::Center,
+            "`C` should set center"
+        );
+        assert!(node.locked, "`X` should set locked");
+
+        let node = glyphs3::Node {
+            x: 1.0,
+            y: 2.0,
+            node_type: NodeType::CurveSmooth,
+            tangent: true,
+            locked: true,
+            orientation: Orientation::Right,
+            user_data: None,
+            hoi: None,
+        };
+        let serialized = {
+            let _guard = crate::common::with_format_version(4);
+            openstep_plist::ser::to_string(&node).unwrap()
+        };
+        assert!(serialized.contains("cstRX"), "got {serialized}");
+    }
+
+    #[test]
+    fn test_load_package_entries_reads_extra_files() {
+        let mut entries = HashMap::new();
+        entries.insert(
+            "fontinfo.plist".to_string(),
+            r#"{ .formatVersion = 4; familyName = "Test"; unitsPerEm = 1000; }"#.to_string(),
+        );
+        entries.insert("order.plist".to_string(), "()".to_string());
+        entries.insert(
+            "kerning.plist".to_string(),
+            r#"{ kerningLTR = { m1 = { A = { B = -10; }; }; }; kerningContext = { "A|B" = { m1 = 5; }; }; }"#
+                .to_string(),
+        );
+        entries.insert("note.md".to_string(), "# Hello\n\nSome note.".to_string());
+        entries.insert(
+            "features/_Languagesystems.fea".to_string(),
+            "languagesystem DFLT dflt;".to_string(),
+        );
+        entries.insert("features/@Uppercase.fea".to_string(), "A B C".to_string());
+        entries.insert(
+            "features/calt.fea".to_string(),
+            "sub a by a.alt;".to_string(),
+        );
+        entries.insert(
+            "features/calt.2.fea".to_string(),
+            "sub b by b.alt;".to_string(),
+        );
+
+        let font = Font::load_package_entries(&entries).unwrap();
+        let g3 = font.as_glyphs3().unwrap();
+
+        // note.md
+        assert_eq!(g3.note, "# Hello\n\nSome note.");
+
+        // kerning.plist is merged into the top level
+        assert_eq!(
+            g3.kerning
+                .get("m1")
+                .and_then(|m| m.get("A"))
+                .and_then(|p| p.get("B"))
+                .copied(),
+            Some(-10.0)
+        );
+        assert_eq!(
+            g3.kerning_context
+                .get("A|B")
+                .and_then(|m| m.get("m1"))
+                .copied(),
+            Some(5.0)
+        );
+
+        // features/*.fea files become prefixes, classes and features
+        assert_eq!(g3.feature_prefixes.len(), 1);
+        assert_eq!(g3.feature_prefixes[0].name, "Languagesystems");
+        assert_eq!(g3.feature_prefixes[0].code, "languagesystem DFLT dflt;");
+
+        assert_eq!(g3.classes.len(), 1);
+        assert_eq!(g3.classes[0].name, "Uppercase");
+        assert_eq!(g3.classes[0].code, "A B C");
+
+        // the `.2` dedup suffix is stripped, so both files map to the `calt` tag
+        assert_eq!(g3.features.len(), 2);
+        assert!(g3.features.iter().all(|f| f.tag == "calt"));
+        let codes: Vec<&str> = g3.features.iter().map(|f| f.code.as_str()).collect();
+        assert!(codes.contains(&"sub a by a.alt;"));
+        assert!(codes.contains(&"sub b by b.alt;"));
+    }
+
+    #[test]
+    fn test_load_package_directory_reads_extra_files() {
+        let package = std::env::temp_dir().join(format!(
+            "glyphslib-package-test-{}.glyphspackage",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&package);
+        std::fs::create_dir_all(package.join("glyphs")).unwrap();
+        std::fs::create_dir_all(package.join("features")).unwrap();
+        std::fs::write(
+            package.join("fontinfo.plist"),
+            r#"{ .formatVersion = 4; familyName = "Test"; unitsPerEm = 1000; }"#,
+        )
+        .unwrap();
+        std::fs::write(package.join("order.plist"), "()").unwrap();
+        std::fs::write(
+            package.join("kerning.plist"),
+            r#"{ kerningLTR = { m1 = { A = { B = -10; }; }; }; }"#,
+        )
+        .unwrap();
+        std::fs::write(package.join("note.md"), "hello").unwrap();
+        std::fs::write(package.join("features").join("calt.fea"), "sub a by a.alt;").unwrap();
+
+        let font = Font::load(&package).unwrap();
+        let g3 = font.as_glyphs3().unwrap();
+        assert_eq!(g3.note, "hello");
+        assert_eq!(g3.features.len(), 1);
+        assert_eq!(g3.features[0].tag, "calt");
+        assert!(g3.kerning.contains_key("m1"));
+
+        let _ = std::fs::remove_dir_all(&package);
     }
 
     #[test]
