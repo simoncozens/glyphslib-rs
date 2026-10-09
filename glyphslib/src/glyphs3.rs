@@ -42,7 +42,7 @@ struct ComponentSerde {
         deserialize_with = "int_to_bool"
     )]
     locked: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "masterId")]
     master_id: Option<String>,
     #[serde(default, skip_serializing_if = "is_default")]
     orientation: Orientation,
@@ -59,7 +59,8 @@ struct ComponentSerde {
     #[serde(
         default = "bool_true",
         rename = "traverseAnchors",
-        skip_serializing_if = "is_true"
+        skip_serializing_if = "is_true",
+        deserialize_with = "int_to_bool"
     )]
     traverse_anchors: bool,
     #[serde(default, rename = "userData", skip_serializing_if = "is_default")]
@@ -972,7 +973,7 @@ pub struct Instance {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, Copy)]
 pub enum ExportType {
     /// Static instance
-    #[default]
+    #[serde(rename = "static")]
     Static,
     /// Variable instance
     #[serde(rename = "variable")]
@@ -980,6 +981,13 @@ pub enum ExportType {
     /// Icon instance
     #[serde(rename = "icon")]
     Icon,
+    /// Single
+    #[default]
+    #[serde(rename = "single")]
+    Single,
+    /// Particles
+    #[serde(rename = "particles")]
+    Particles,
 }
 
 /// Font property (`GSInfoProperty`)

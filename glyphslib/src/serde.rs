@@ -848,6 +848,9 @@ where
     Ok(match variant.as_str() {
         "static" => glyphs3::ExportType::Static,
         "variable" => glyphs3::ExportType::Variable,
+        "icon" => glyphs3::ExportType::Icon,
+        "single" => glyphs3::ExportType::Single,
+        "particles" => glyphs3::ExportType::Particles,
         _ => {
             return Err(serde::de::Error::custom(format!(
                 "unknown export type: {variant}"
