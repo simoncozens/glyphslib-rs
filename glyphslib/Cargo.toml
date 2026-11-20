@@ -23,7 +23,11 @@ rstest = "0.24.0"
 openstep-plist = { version = "1.1.0", path = "../openstep-plist" }
 serde = "1.0"
 serde_path_to_error = "0.1"
-serde_with = "3.11"
+serde_with = { version = "3.11", default-features = false, features = [
+    "macros",
+    "alloc",
+    "std",
+] }
 itertools = { workspace = true }
 thiserror = { workspace = true }
 paste = "1.0.15"

@@ -10,7 +10,6 @@ use crate::{
 
 use openstep_plist::Dictionary;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
 use crate::{
     common::{
@@ -370,7 +369,6 @@ pub struct Instance {
 }
 
 /// Glyph (`GSGlyph`)
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Glyph {
     /// The bottom kerning group of the glyph.
@@ -482,7 +480,6 @@ pub struct Glyph {
 }
 
 /// Layer (`GSLayer`)
-#[serde_as]
 #[derive(Serialize, Deserialize, Debug, Default, Clone, PartialEq)]
 pub struct Layer {
     /// The anchors of the layer.
